@@ -1,7 +1,7 @@
 # Compila o BruMaRe para Windows e publica uma Release completa no GitHub:
 #   - BruMaRe-Setup-<versão>.exe            instalador (recomendado)
-#   - BruMaRe-Portable-<versão>-win64.zip   versão portátil (BruMaRe.exe + brumare.exe)
-#   - BruMaRe.exe / brumare.exe             interface gráfica e linha de comando soltos
+#   - BruMaRe-Portable-<versão>-win64.zip   versão portátil (BruMaRe.exe + brumare-cli.exe)
+#   - BruMaRe.exe / brumare-cli.exe         interface gráfica e linha de comando soltos
 #   - SHA256SUMS.txt                        checksums para verificação
 #
 # COMO USAR (sem terminal):
@@ -158,7 +158,7 @@ jobs:
                   ])
 
           open("version_gui.txt", "w", encoding="utf-8").write(str(make("BruMaRe.exe", "BruMaRe - Interface gráfica")))
-          open("version_cli.txt", "w", encoding="utf-8").write(str(make("brumare.exe", "BruMaRe - Linha de comando")))
+          open("version_cli.txt", "w", encoding="utf-8").write(str(make("brumare-cli.exe", "BruMaRe - Linha de comando")))
           print("version info ok:", v)
           '@ | python -
 
@@ -176,7 +176,9 @@ jobs:
             brumare_gui.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller (GUI) falhou" }
 
-          python -m PyInstaller --noconfirm --clean --onefile --console --name brumare `
+          # Atenção: no Windows "BruMaRe.exe" e "brumare.exe" são o MESMO arquivo
+          # (nomes não diferenciam maiúsculas). Por isso o CLI se chama brumare-cli.exe.
+          python -m PyInstaller --noconfirm --clean --onefile --console --name brumare-cli `
             --icon assets\brumare.ico --version-file version_cli.txt `
             --exclude-module scipy --exclude-module pandas --exclude-module IPython `
             --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 `
@@ -188,16 +190,21 @@ jobs:
       - name: Teste do executável de linha de comando
         shell: pwsh
         run: |
-          $out = (& dist\brumare.exe --versao 2>&1 | Out-String)
-          if ($LASTEXITCODE -ne 0) { throw "brumare.exe --versao falhou" }
+          # Garante que a interface gráfica não foi sobrescrita pelo CLI.
+          $h1 = (Get-FileHash dist\BruMaRe.exe).Hash
+          $h2 = (Get-FileHash dist\brumare-cli.exe).Hash
+          if ($h1 -eq $h2) { throw "BruMaRe.exe e brumare-cli.exe são idênticos: um sobrescreveu o outro." }
+
+          $out = (& dist\brumare-cli.exe --versao 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw "brumare-cli.exe --versao falhou" }
           Write-Host $out
           if ($out -notmatch [regex]::Escape($env:VERSION)) {
             throw "A versão do .exe ('$($out.Trim())') não bate com $env:VERSION"
           }
-          & dist\brumare.exe --sobre
-          if ($LASTEXITCODE -ne 0) { throw "brumare.exe --sobre falhou" }
-          & dist\brumare.exe -h | Out-Null
-          if ($LASTEXITCODE -ne 0) { throw "brumare.exe -h falhou" }
+          & dist\brumare-cli.exe --sobre
+          if ($LASTEXITCODE -ne 0) { throw "brumare-cli.exe --sobre falhou" }
+          & dist\brumare-cli.exe -h | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "brumare-cli.exe -h falhou" }
 
       # Abre a interface e confirma que ela não fecha sozinha (erro de DLL, WebView2 etc.).
       - name: Teste de abertura da interface gráfica
@@ -231,12 +238,14 @@ jobs:
           Write-Host "Conteúdo instalado:"
           Get-ChildItem $dir -Recurse -File | Select-Object -First 30 FullName, Length | Format-Table -AutoSize
 
-          $cli = Get-ChildItem $dir -Recurse -Filter brumare.exe | Select-Object -First 1
+          $cli = Get-ChildItem $dir -Recurse -Filter brumare-cli.exe | Select-Object -First 1
           $gui = Get-ChildItem $dir -Recurse -Filter BruMaRe.exe | Select-Object -First 1
           if (-not $gui) { throw "BruMaRe.exe não foi instalado em $dir" }
           if ($cli) {
             & $cli.FullName --versao
-            if ($LASTEXITCODE -ne 0) { throw "brumare.exe instalado falhou" }
+            if ($LASTEXITCODE -ne 0) { throw "brumare-cli.exe instalado falhou" }
+          } else {
+            Write-Host "::warning::brumare-cli.exe não está no instalador (ajuste packaging/windows/brumare.iss se quiser incluí-lo)."
           }
 
           $unins = Get-ChildItem $dir -Filter "unins*.exe" | Select-Object -First 1
@@ -245,21 +254,32 @@ jobs:
             Write-Host "Desinstalação concluída."
           }
 
-      - name: Pacote portátil (.zip) e checksums
+      # Reúne em release/ só os arquivos que vão para a Release, todos com nomes
+      # distintos (o GitHub trata nomes de arquivo sem diferenciar maiúsculas).
+      - name: Arquivos da Release, pacote portátil (.zip) e checksums
         shell: pwsh
         run: |
           $v = $env:VERSION
+          New-Item -ItemType Directory -Force release | Out-Null
+
           $stage = "stage\BruMaRe-Portable-$v-win64"
           New-Item -ItemType Directory -Force $stage | Out-Null
-          Copy-Item dist\BruMaRe.exe, dist\brumare.exe $stage
+          Copy-Item dist\BruMaRe.exe, dist\brumare-cli.exe $stage
           Copy-Item README.md, LICENSE, LICENSE.txt, LICENSE.md $stage -ErrorAction SilentlyContinue
-          Compress-Archive -Path "$stage\*" -DestinationPath "dist\BruMaRe-Portable-$v-win64.zip" -Force
+          Compress-Archive -Path "$stage\*" -DestinationPath "release\BruMaRe-Portable-$v-win64.zip" -Force
 
-          $lines = Get-ChildItem dist -File | Where-Object { $_.Extension -in ".exe", ".zip" } | Sort-Object Name | ForEach-Object {
+          $setup = Get-ChildItem dist\BruMaRe-Setup-*.exe | Select-Object -First 1
+          if (-not $setup) { throw "Instalador não encontrado em dist\" }
+          Copy-Item $setup.FullName release\
+          Copy-Item dist\BruMaRe.exe, dist\brumare-cli.exe release\
+          "SETUP_NAME=$($setup.Name)" >> $env:GITHUB_ENV
+
+          $lines = Get-ChildItem release -File | Sort-Object Name | ForEach-Object {
             "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
           }
-          $lines | Set-Content -Path dist\SHA256SUMS.txt -Encoding ascii
-          Get-Content dist\SHA256SUMS.txt
+          $lines | Set-Content -Path release\SHA256SUMS.txt -Encoding ascii
+          Get-Content release\SHA256SUMS.txt
+          Get-ChildItem release | Format-Table Name, Length
 
       - name: Texto da Release
         shell: pwsh
@@ -272,10 +292,10 @@ jobs:
 
           | Arquivo | Para quê |
           |---|---|
-          | **BruMaRe-Setup-$v.exe** | Instalador (recomendado): atalhos no Menu Iniciar e desinstalador |
+          | **$($env:SETUP_NAME)** | Instalador (recomendado): atalhos no Menu Iniciar e desinstalador |
           | **BruMaRe-Portable-$v-win64.zip** | Versão portátil: extraia e execute, sem instalar |
           | BruMaRe.exe | Interface gráfica (igual ao site, funciona offline) |
-          | brumare.exe | Linha de comando (``brumare --help``) |
+          | brumare-cli.exe | Linha de comando (``brumare-cli --help``) |
           | SHA256SUMS.txt | Checksums para conferir a integridade dos arquivos |
 
           ### Requisitos
@@ -288,7 +308,7 @@ jobs:
 
           ### Conferir a integridade (opcional)
           ``````powershell
-          Get-FileHash .\BruMaRe-Setup-$v.exe -Algorithm SHA256
+          Get-FileHash .\$($env:SETUP_NAME) -Algorithm SHA256
           ``````
           Compare o resultado com o arquivo ``SHA256SUMS.txt`` desta Release.
 
@@ -302,12 +322,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: BruMaRe-Windows-${{ env.VERSION }}
-          path: |
-            dist/BruMaRe.exe
-            dist/brumare.exe
-            dist/BruMaRe-Setup-*.exe
-            dist/BruMaRe-Portable-*.zip
-            dist/SHA256SUMS.txt
+          path: release/*
           if-no-files-found: error
           retention-days: 30
 
@@ -326,9 +341,4 @@ jobs:
           prerelease: ${{ env.PRERELEASE == 'true' }}
           make_latest: ${{ env.PRERELEASE != 'true' }}
           fail_on_unmatched_files: true
-          files: |
-            dist/BruMaRe-Setup-*.exe
-            dist/BruMaRe-Portable-*.zip
-            dist/BruMaRe.exe
-            dist/brumare.exe
-            dist/SHA256SUMS.txt
+          files: release/*
