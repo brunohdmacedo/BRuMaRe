@@ -208,6 +208,7 @@ jobs:
 
       # Abre a interface e confirma que ela não fecha sozinha (erro de DLL, WebView2 etc.).
       - name: Teste de abertura da interface gráfica
+        id: gui
         shell: pwsh
         continue-on-error: true
         run: |
@@ -216,6 +217,40 @@ jobs:
           if ($p.HasExited) { throw "BruMaRe.exe fechou sozinho (código $($p.ExitCode))" }
           Write-Host "Interface abriu e permaneceu em execução."
           taskkill /F /T /PID $p.Id | Out-Null
+
+      # Só roda se o teste acima falhou: mostra POR QUE a interface fechou.
+      # (o .exe sem console esconde as mensagens de erro; aqui geramos uma cópia com console)
+      - name: Diagnóstico da interface (só se o teste de abertura falhou)
+        if: steps.gui.outcome == 'failure'
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Write-Host "=== 1) Erros recentes registrados pelo Windows ==="
+          Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 2; StartTime = (Get-Date).AddMinutes(-5) } -ErrorAction SilentlyContinue |
+            Select-Object -First 5 | ForEach-Object { $_.Message; "---" }
+
+          Write-Host "=== 2) Código-fonte rodando direto no Python (20 s) ==="
+          $p = Start-Process python -ArgumentList "brumare_gui.py" -PassThru -NoNewWindow `
+            -RedirectStandardOutput py_out.txt -RedirectStandardError py_err.txt
+          if ($p.WaitForExit(20000)) { Write-Host "Terminou sozinho, código $($p.ExitCode)" }
+          else { Write-Host "Ficou aberto por 20 s (ok)"; taskkill /F /T /PID $p.Id | Out-Null }
+          Get-Content py_out.txt, py_err.txt -ErrorAction SilentlyContinue
+
+          Write-Host "=== 3) Cópia do .exe COM console, para ver o erro ==="
+          python -m PyInstaller --noconfirm --onefile --console --name BruMaRe-debug `
+            --distpath dist_debug --workpath build_debug `
+            --add-data "brumare_app\web;brumare_app\web" --add-data "assets;assets" `
+            --collect-all webview --collect-all pythonnet --collect-all clr_loader `
+            --collect-all moyopy --collect-all imagecodecs --hidden-import clr `
+            --exclude-module scipy --exclude-module pandas --exclude-module IPython `
+            --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 `
+            --exclude-module notebook --exclude-module jedi --exclude-module sympy `
+            brumare_gui.py | Out-Null
+          $d = Start-Process dist_debug\BruMaRe-debug.exe -PassThru `
+            -RedirectStandardOutput dbg_out.txt -RedirectStandardError dbg_err.txt
+          if ($d.WaitForExit(20000)) { Write-Host "Terminou sozinho, código $($d.ExitCode)" }
+          else { Write-Host "Ficou aberto por 20 s (ok)"; taskkill /F /T /PID $d.Id | Out-Null }
+          Get-Content dbg_out.txt, dbg_err.txt -ErrorAction SilentlyContinue
 
       - name: Instalador (Inno Setup)
         shell: pwsh
