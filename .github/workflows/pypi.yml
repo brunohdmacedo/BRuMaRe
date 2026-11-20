@@ -1,23 +1,195 @@
-# Publica o brumare no PyPI quando uma Release é publicada no GitHub.
-# Antes, configure o "Trusted Publisher" no PyPI (veja docs/MANUAL.md, seção E).
-name: Publicar no PyPI
+name: Publish BrUMaRe to PyPI
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Versão a publicar (ex.: 1.0.1)"
+        required: true
+        default: "1.0.1"
+      target:
+        description: "Destino da publicação"
+        type: choice
+        options:
+          - pypi
+          - testpypi
+        required: false
+        default: "pypi"
+
+# Padrão mínimo para todos os jobs. O id-token só é liberado nos jobs de publicação.
+permissions:
+  contents: read
+
+concurrency:
+  group: pypi-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  pypi:
+  # ---------------------------------------------------------------------------
+  # 1) Build: gera sdist + wheel e valida com twine. Não tem acesso ao PyPI.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build do pacote
     runs-on: ubuntu-latest
-    environment: pypi
     permissions:
-      id-token: write
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout do repositório
+        uses: actions/checkout@v5
         with:
-          python-version: "3.12"
-      - run: python -m pip install --upgrade build
-      - run: python -m build
-      - uses: pypa/gh-action-pypi-publish@release/v1
+          fetch-depth: 0
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar ferramentas de build
+        run: python -m pip install --upgrade pip build twine packaging
+
+      - name: Preparar a pasta do projeto
+        shell: bash
+        run: |
+          python - <<'EOF'
+          import shutil, sys
+          from pathlib import Path
+
+          root = Path(".").resolve()
+          src_dir = root / "brumare"
+
+          if (src_dir / "pyproject.toml").is_file():
+              # Estrutura com subpasta brumare/: copia o conteúdo para a raiz do build.
+              for item in src_dir.iterdir():
+                  if item.name == ".git":
+                      continue
+                  dest = root / item.name
+                  if item.is_dir():
+                      shutil.copytree(item, dest, dirs_exist_ok=True)
+                  else:
+                      shutil.copy2(item, dest)
+              print("Arquivos de brumare/ copiados para a raiz do build.")
+          elif (root / "pyproject.toml").is_file():
+              print("Usando o pyproject.toml da raiz do repositório.")
+          else:
+              print("::error::Nenhum pyproject.toml encontrado (nem em brumare/ nem na raiz).")
+              sys.exit(1)
+          EOF
+
+      - name: Definir versão e atualizar pyproject.toml / scripts
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            V="$INPUT_VERSION"
+          else
+            V="$REF_NAME"
+          fi
+          V="${V#v}"
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+          echo "Publicando versão: $V"
+
+          VERSION="$V" python - <<'EOF'
+          import os, re, sys
+          from pathlib import Path
+          from packaging.version import Version, InvalidVersion
+
+          v = os.environ["VERSION"]
+          try:
+              Version(v)
+          except InvalidVersion:
+              print(f"::error::Versão inválida para o PyPI: {v!r}")
+              sys.exit(1)
+
+          pyproject = Path("pyproject.toml")
+          if pyproject.is_file():
+              txt = pyproject.read_text(encoding="utf-8")
+              new_txt, n = re.subn(r'(?m)^version\s*=\s*"[^"]*"', f'version = "{v}"', txt, count=1)
+              if n:
+                  pyproject.write_text(new_txt, encoding="utf-8")
+                  print(f"pyproject.toml -> {v}")
+              else:
+                  print("::warning::Campo version não encontrado no pyproject.toml (versão dinâmica?).")
+
+          for py_name in ("brumare.py", "brumare_gui.py", "brumare_lote.py"):
+              p = Path(py_name)
+              if p.is_file():
+                  content = p.read_text(encoding="utf-8")
+                  updated, count = re.subn(r'(?m)^VERSAO\s*=\s*[^\r\n]*', f'VERSAO = "{v}"', content)
+                  if count:
+                      p.write_text(updated, encoding="utf-8")
+                      print(f"VERSAO em {py_name} -> {v}")
+          EOF
+
+      - name: Gerar sdist e wheel
+        run: python -m build
+
+      - name: Validar pacote (twine check)
+        run: python -m twine check --strict dist/*
+
+      - name: Listar arquivos gerados
+        run: ls -lh dist/
+
+      - name: Guardar artefatos de build
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 2a) TestPyPI (só em execução manual com target = testpypi)
+  # ---------------------------------------------------------------------------
+  publish-testpypi:
+    name: Publicar no TestPyPI
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+    permissions:
+      contents: read
+      id-token: write       # Trusted Publishing (OIDC)
+    steps:
+      - name: Baixar artefatos de build
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publicar no TestPyPI via OIDC
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  # ---------------------------------------------------------------------------
+  # 2b) PyPI (tag v* ou execução manual com target = pypi)
+  # ---------------------------------------------------------------------------
+  publish-pypi:
+    name: Publicar no PyPI
+    needs: build
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      contents: read
+      id-token: write       # Trusted Publishing (OIDC)
+    steps:
+      - name: Baixar artefatos de build
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publicar no PyPI via OIDC
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true

@@ -1,6 +1,9 @@
-# Compila o BruMaRe para Windows: BruMaRe.exe (interface IGUAL ao site, offline, janela do Edge/WebView2),
-# brumare.exe (linha de comando)
-# e o instalador BruMaRe-Setup-<versão>.exe. Em tags "v*" publica tudo numa Release.
+# Compila o BruMaRe para Windows e publica uma Release completa:
+#   - BruMaRe-Setup-<versão>.exe        instalador (recomendado)
+#   - BruMaRe-Portable-<versão>-win64.zip   versão portátil (BruMaRe.exe + brumare.exe)
+#   - BruMaRe.exe / brumare.exe         interface gráfica e linha de comando soltos
+#   - SHA256SUMS.txt                    checksums para verificação
+# Em tags "v*" cria a Release; em execução manual só gera os artefatos.
 name: Windows (.exe e instalador)
 
 on:
@@ -11,40 +14,248 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
+
+      # ------------------------------------------------------------------
+      # Versão: na tag vX.Y.Z a versão vem da tag e é gravada em VERSAO,
+      # assim o .exe, o instalador e a Release sempre mostram o mesmo número.
+      # ------------------------------------------------------------------
+      - name: Definir versão
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like "refs/tags/v*") {
+            $v = $env:GITHUB_REF_NAME.TrimStart("v")
+          } else {
+            $m = Select-String -Path brumare.py -Pattern '^VERSAO\s*=\s*"(.+)"'
+            if (-not $m) { throw "VERSAO não encontrada em brumare.py" }
+            $v = $m.Matches[0].Groups[1].Value
+          }
+          if ($v -notmatch '^\d+\.\d+\.\d+([.\-+][0-9A-Za-z.\-]+)?$') { throw "Versão inválida: $v" }
+
+          foreach ($f in "brumare.py", "brumare_gui.py", "brumare_lote.py") {
+            if (Test-Path $f) {
+              $c = Get-Content $f -Raw -Encoding UTF8
+              $n = [regex]::Replace($c, '(?m)^VERSAO\s*=\s*[^\r\n]*', "VERSAO = `"$v`"")
+              if ($n -ne $c) {
+                [IO.File]::WriteAllText((Resolve-Path $f).Path, $n, (New-Object Text.UTF8Encoding $false))
+                Write-Host "VERSAO em $f -> $v"
+              }
+            }
+          }
+          "VERSION=$v" >> $env:GITHUB_ENV
+          Write-Host "Versão: $v"
+
       - name: Dependências
         run: |
           python -m pip install --upgrade pip
-          python -m pip install numpy matplotlib pillow pywebview pyinstaller moyopy imagecodecs
+          python -m pip install numpy matplotlib pillow pywebview pythonnet pyinstaller moyopy imagecodecs
+
       - name: Interface offline (cópia do site em brumare_app/web)
         run: python tools/montar_app.py
+
       - name: Foto do autor (Lattes)
         shell: pwsh
         run: |
-          try { Invoke-WebRequest -UseBasicParsing -Uri "https://wwws.cnpq.br/cvlattesweb/pkg_util_img.show_foto?v_cod=K4494050P3" -OutFile assets/autor.jpg; Write-Host "foto ok" }
-          catch { Write-Host "Foto nao baixada: a interface carrega a foto do Lattes quando houver internet." }
+          New-Item -ItemType Directory -Force assets | Out-Null
+          try {
+            Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Uri "https://wwws.cnpq.br/cvlattesweb/pkg_util_img.show_foto?v_cod=K4494050P3" -OutFile assets/autor.jpg
+            Write-Host "foto ok"
+          } catch {
+            Write-Host "Foto nao baixada: a interface carrega a foto do Lattes quando houver internet."
+          }
+
+      # Metadados do .exe (Propriedades > Detalhes): nome, versão, autor.
+      # Deixa o executável mais "legítimo" para o Windows e para antivírus.
+      - name: Metadados do executável (version info)
+        shell: pwsh
+        run: |
+          @'
+          import os, re
+          from PyInstaller.utils.win32.versioninfo import (
+              VSVersionInfo, FixedFileInfo, StringFileInfo, StringTable, StringStruct,
+              VarFileInfo, VarStruct)
+
+          v = os.environ["VERSION"]
+          nums = [int(x) for x in re.findall(r"\d+", v)][:4]
+          nums += [0] * (4 - len(nums))
+          t = tuple(nums)
+          owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "BruMaRe")
+
+          def make(filename, desc):
+              return VSVersionInfo(
+                  ffi=FixedFileInfo(filevers=t, prodvers=t, mask=0x3F, flags=0x0,
+                                    OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
+                  kids=[
+                      StringFileInfo([StringTable("040904B0", [
+                          StringStruct("CompanyName", owner),
+                          StringStruct("FileDescription", desc),
+                          StringStruct("FileVersion", v),
+                          StringStruct("InternalName", "BruMaRe"),
+                          StringStruct("OriginalFilename", filename),
+                          StringStruct("ProductName", "BruMaRe"),
+                          StringStruct("ProductVersion", v),
+                          StringStruct("LegalCopyright", "© " + owner),
+                      ])]),
+                      VarFileInfo([VarStruct("Translation", [1033, 1200])]),
+                  ])
+
+          open("version_gui.txt", "w", encoding="utf-8").write(str(make("BruMaRe.exe", "BruMaRe - Interface gráfica")))
+          open("version_cli.txt", "w", encoding="utf-8").write(str(make("brumare.exe", "BruMaRe - Linha de comando")))
+          print("version info ok:", v)
+          '@ | python -
+
       - name: Executáveis (PyInstaller)
+        shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name BruMaRe --icon assets\brumare.ico --add-data "brumare_app\web;brumare_app\web" --add-data "assets;assets" --collect-all webview --hidden-import clr --exclude-module scipy --exclude-module pandas --exclude-module IPython --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 --exclude-module notebook --exclude-module jedi --exclude-module sympy brumare_gui.py
-          python -m PyInstaller --noconfirm --clean --onefile --console --name brumare --icon assets\brumare.ico --exclude-module scipy --exclude-module pandas --exclude-module IPython --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 --exclude-module notebook --exclude-module jedi --exclude-module sympy --exclude-module tkinter --collect-all moyopy --collect-all imagecodecs brumare.py
-      - name: Teste rápido do executável de linha de comando
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name BruMaRe `
+            --icon assets\brumare.ico --version-file version_gui.txt `
+            --add-data "brumare_app\web;brumare_app\web" --add-data "assets;assets" `
+            --collect-all webview --collect-all pythonnet --collect-all clr_loader `
+            --collect-all moyopy --collect-all imagecodecs --hidden-import clr `
+            --exclude-module scipy --exclude-module pandas --exclude-module IPython `
+            --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 `
+            --exclude-module notebook --exclude-module jedi --exclude-module sympy `
+            brumare_gui.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller (GUI) falhou" }
+
+          python -m PyInstaller --noconfirm --clean --onefile --console --name brumare `
+            --icon assets\brumare.ico --version-file version_cli.txt `
+            --exclude-module scipy --exclude-module pandas --exclude-module IPython `
+            --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 `
+            --exclude-module notebook --exclude-module jedi --exclude-module sympy --exclude-module tkinter `
+            --collect-all moyopy --collect-all imagecodecs `
+            brumare.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller (CLI) falhou" }
+
+      - name: Teste do executável de linha de comando
+        shell: pwsh
         run: |
-          dist\brumare.exe --versao
-          dist\brumare.exe --sobre
-          dist\brumare.exe -h
+          $out = (& dist\brumare.exe --versao 2>&1 | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw "brumare.exe --versao falhou" }
+          Write-Host $out
+          if ($out -notmatch [regex]::Escape($env:VERSION)) {
+            throw "A versão do .exe ('$($out.Trim())') não bate com $env:VERSION"
+          }
+          & dist\brumare.exe --sobre
+          if ($LASTEXITCODE -ne 0) { throw "brumare.exe --sobre falhou" }
+          & dist\brumare.exe -h | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "brumare.exe -h falhou" }
+
+      # Abre a interface e confirma que ela não fecha sozinha (erro de DLL, WebView2 etc.).
+      - name: Teste de abertura da interface gráfica
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $p = Start-Process -FilePath dist\BruMaRe.exe -PassThru
+          Start-Sleep -Seconds 15
+          if ($p.HasExited) { throw "BruMaRe.exe fechou sozinho (código $($p.ExitCode))" }
+          Write-Host "Interface abriu e permaneceu em execução."
+          taskkill /F /T /PID $p.Id | Out-Null
+
       - name: Instalador (Inno Setup)
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
-          $v = (Select-String -Path brumare.py -Pattern '^VERSAO = "(.+)"').Matches[0].Groups[1].Value
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$v" packaging\windows\brumare.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$env:VERSION" packaging\windows\brumare.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou" }
+          Get-ChildItem dist\BruMaRe-Setup-*.exe | ForEach-Object { Write-Host "Instalador: $($_.Name)" }
+
+      # Instala em silêncio, roda o executável instalado e desinstala.
+      - name: Teste do instalador (instalar, executar, desinstalar)
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist\BruMaRe-Setup-*.exe | Select-Object -First 1).FullName
+          $dir = Join-Path $env:RUNNER_TEMP "BruMaReInstall"
+          Start-Process -FilePath $setup -Wait `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=`"$dir`""
+          Get-Process -Name BruMaRe -ErrorAction SilentlyContinue | Stop-Process -Force
+
+          Write-Host "Conteúdo instalado:"
+          Get-ChildItem $dir -Recurse -File | Select-Object -First 30 FullName, Length | Format-Table -AutoSize
+
+          $cli = Get-ChildItem $dir -Recurse -Filter brumare.exe | Select-Object -First 1
+          $gui = Get-ChildItem $dir -Recurse -Filter BruMaRe.exe | Select-Object -First 1
+          if (-not $gui) { throw "BruMaRe.exe não foi instalado em $dir" }
+          if ($cli) {
+            & $cli.FullName --versao
+            if ($LASTEXITCODE -ne 0) { throw "brumare.exe instalado falhou" }
+          }
+
+          $unins = Get-ChildItem $dir -Filter "unins*.exe" | Select-Object -First 1
+          if ($unins) {
+            Start-Process -FilePath $unins.FullName -Wait -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
+            Write-Host "Desinstalação concluída."
+          }
+
+      - name: Pacote portátil (.zip) e checksums
+        shell: pwsh
+        run: |
+          $v = $env:VERSION
+          $stage = "stage\BruMaRe-Portable-$v-win64"
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item dist\BruMaRe.exe, dist\brumare.exe $stage
+          Copy-Item README.md, LICENSE, LICENSE.txt, LICENSE.md $stage -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$stage\*" -DestinationPath "dist\BruMaRe-Portable-$v-win64.zip" -Force
+
+          $lines = Get-ChildItem dist -File | Where-Object { $_.Extension -in ".exe", ".zip" } | Sort-Object Name | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          }
+          $lines | Set-Content -Path dist\SHA256SUMS.txt -Encoding ascii
+          Get-Content dist\SHA256SUMS.txt
+
+      - name: Texto da Release
+        shell: pwsh
+        run: |
+          $v = $env:VERSION
+          $repo = $env:GITHUB_REPOSITORY
+          $body = @"
+          ## BruMaRe $v para Windows
+
+          Baixe, instale e use. Nenhuma instalação de Python é necessária.
+
+          | Arquivo | Para quê |
+          |---|---|
+          | **BruMaRe-Setup-$v.exe** | Instalador (recomendado): atalhos no Menu Iniciar e desinstalador |
+          | **BruMaRe-Portable-$v-win64.zip** | Versão portátil: extraia e execute, sem instalar |
+          | BruMaRe.exe | Interface gráfica (igual ao site, funciona offline) |
+          | brumare.exe | Linha de comando (``brumare --help``) |
+          | SHA256SUMS.txt | Checksums para conferir a integridade dos arquivos |
+
+          ### Requisitos
+          - Windows 10 ou 11, 64 bits
+          - Microsoft Edge WebView2 Runtime (já vem no Windows 11 e nas versões atualizadas do Windows 10)
+
+          ### Aviso do Windows SmartScreen
+          Como o executável ainda não tem assinatura digital paga, o Windows pode mostrar *"O Windows protegeu seu computador"*.
+          Clique em **Mais informações** e depois em **Executar assim mesmo**.
+
+          ### Conferir a integridade (opcional)
+          ``````powershell
+          Get-FileHash .\BruMaRe-Setup-$v.exe -Algorithm SHA256
+          ``````
+          Compare o resultado com o arquivo ``SHA256SUMS.txt`` desta Release.
+
+          ---
+          ### Novidades
+          "@
+          # remove a indentação do bloco YAML
+          $body = ($body -split "`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          Set-Content -Path release_notes.md -Value $body -Encoding utf8
+
       - uses: actions/upload-artifact@v4
         with:
           name: BruMaRe-Windows
@@ -52,11 +263,24 @@ jobs:
             dist/BruMaRe.exe
             dist/brumare.exe
             dist/BruMaRe-Setup-*.exe
+            dist/BruMaRe-Portable-*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          name: BruMaRe ${{ env.VERSION }}
+          body_path: release_notes.md
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
           files: |
             dist/BruMaRe-Setup-*.exe
+            dist/BruMaRe-Portable-*.zip
             dist/BruMaRe.exe
             dist/brumare.exe
+            dist/SHA256SUMS.txt
