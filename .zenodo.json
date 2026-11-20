@@ -1,0 +1,10 @@
+{
+  "title": "BrUMaRe: Brillouin-zone Utilities for Materials Research",
+  "description": "Unified, browser-native and command-line post-processing of CASTEP, VASP, SIESTA, Quantum ESPRESSO and ORCA calculations: band structures, densities of states, band-gap corrections, effective masses, point defects, thermodynamics, charge densities, Voronoi and Bader partitions, cross-code comparison and automatic citation.",
+  "upload_type": "software",
+  "version": "1.3.0",
+  "license": "GPL-3.0-or-later",
+  "creators": [{"name": "Macedo, Bruno Henrique Dourado", "affiliation": "Universidade Federal da Integração Latino-Americana (UNILA)", "orcid": "0000-0002-8152-0950"}],
+  "keywords": ["density functional theory", "band structure", "density of states", "charge density", "point defects", "Bader analysis", "CASTEP", "VASP", "SIESTA", "Quantum ESPRESSO", "ORCA"],
+  "related_identifiers": [{"identifier": "https://brunohdmacedo.tech/brumare/", "relation": "isDocumentedBy", "resource_type": "publication-softwaredocumentation"}]
+}

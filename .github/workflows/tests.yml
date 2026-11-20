@@ -1,0 +1,31 @@
+name: testes
+on:
+  push:
+  pull_request:
+jobs:
+  nucleo:                     # só as dependências do BrUMaRe (numpy, matplotlib)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install numpy matplotlib pillow pytest moyopy
+      - run: cd tests && pytest -q
+  comparacao:                 # inclui a comparação com ferramentas consolidadas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy matplotlib pillow pytest imagecodecs moyopy pymatgen sumo sisl cclib pybader
+      - run: cd tests && pytest -q
+      - run: python tools/comparar_ferramentas.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: comparacao
+          path: docs/comparacao/

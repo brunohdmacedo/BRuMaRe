@@ -1,0 +1,35 @@
+% Journal of Computational Chemistry (Wiley) — article type "Software News and Updates".
+% Wiley accepts free-format first submissions; after acceptance, use the Wiley NJD template.
+\documentclass[11pt,a4paper]{article}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[numbers,sort&compress]{natbib}
+\input{macros/preamble}
+\title{\BMR: an open-source, browser-native and desktop toolkit for the unified post-processing of CASTEP, VASP, SIESTA, Quantum ESPRESSO and ORCA calculations}
+\author{Bruno Henrique Dourado Macedo\thanks{Programa de P\'os-Gradua\c{c}\~ao em F\'isica Aplicada (PPGFISA), Universidade Federal da Integra\c{c}\~ao Latino-Americana (UNILA), Foz do Igua\c{c}u, PR, Brazil. E-mail: brunohdmacedo@gmail.com. ORCID: 0000-0002-8152-0950}}
+\date{}
+\begin{document}\maketitle
+\noindent\textbf{Article type:} Software News and Updates\par\medskip
+\noindent\textbf{Abstract.} Post-processing of first-principles calculations is usually spread over many independent programs: one tool plots band structures, another projects densities of states, a third visualises charge densities, a fourth partitions charges, and each code family requires its own parsers. We present \BMR\ (\emph{Brillouin-zone Utilities for Materials Research}), a free and open-source toolkit that unifies these tasks for the outputs of five electronic-structure packages — CASTEP, VASP, SIESTA, Quantum ESPRESSO and ORCA — behind a single, code-agnostic data model. The same analysis is exposed through three front-ends that share their semantics: a zero-installation web application that runs entirely in the browser, a desktop application that embeds the same interface offline, and a command-line program designed for high-performance computing clusters. \BMR\ computes spin-resolved band structures, total and projected densities of states at five orbital levels, fat bands, band edges and gaps by electron counting, scissor and empirical PBE$\to G_0W_0$ band-gap corrections, effective masses, the first Brillouin zone with high-symmetry points and ready-to-use $\bm k$-paths, $d$-band centres and spin polarisation; it identifies point defects, quantifies the distortion of coordination polyhedra and the displacement field, evaluates formation and hydrogen-desorption thermodynamics, and analyses total, spin and difference charge densities with Voronoi and Bader partitions, plane galleries and multipole descriptors of charge redistribution. Calculations from different codes can be compared side by side, and every session produces a BibTeX file containing exactly the methods and codes used. The Fermi energy is never recomputed. We describe the algorithms, their implementation and their validation against reference systems (Si, Fe$_2$O$_3$, SrTiO$_3$, divinylbenzene), and illustrate the workflow on Fe-substituted MgH$_2$ for solid-state hydrogen storage.\par\medskip
+\noindent\textbf{Keywords:} density functional theory; band structure; density of states; charge density; point defects; open-source software\par\medskip
+\noindent\textbf{Graphical abstract:} \texttt{figures/comparison.png} — BrUMaRe compares calculations from different electronic-structure codes in a single, code-agnostic framework.
+\linenumbers
+\input{sections/01_introduction}
+\input{sections/02_architecture}
+\input{sections/03_input_layer}
+\input{sections/04_methods}
+\input{sections/05_implementation}
+\input{sections/06_validation}
+\input{sections/07_application}
+\input{sections/08_limitations}
+\input{sections/09_conclusions}
+\section*{Acknowledgments}
+The author thanks Benedet, R. O., without whom this work would never have happened, Prof. J. R. C. Salgado and Prof. R. S. da Lapa for supervision, and the developers of the electronic-structure codes and test suites used for validation. This work was supported by the Conselho Nacional de Desenvolvimento Cient\'ifico e Tecnol\'ogico (CNPq, Brazil) through a master's scholarship. \textit{Use of generative AI:} % REVISE este texto para que descreva exatamente o seu uso de IA (exigência das revistas).
+Generative artificial intelligence (Anthropic's Claude) was used extensively during this work: to help write and refactor parts of the JavaScript and Python source code, to produce translations of the interface and tutorial, to draft documentation, and to assist in drafting and editing this manuscript. The scientific scope, the choice of methods and equations, and the requirements of every analysis were defined by the author. All AI-assisted code was reviewed and verified by the author through the tests described in the Validation section, in particular by comparison with real outputs of CASTEP, VASP, SIESTA, Quantum ESPRESSO and ORCA, by cross-checking the browser and command-line implementations, and by byte-by-byte regression of the CASTEP outputs after every change. The author takes full responsibility for the content of the software and of this publication.
+
+\section*{Conflict of interest}The author declares no conflict of interest.
+\section*{Data availability statement}Source code, issue tracker and releases: \url{https://github.com/brunohdmacedo/brumare} (GPL-3.0-or-later). Web application and tutorial in six languages: \url{https://brunohdmacedo.tech/brumare/}. Python package: \texttt{pip install brumare}. The version described here (1.3.0) should be archived with a DOI (e.g.\ Zenodo) before submission. Validation inputs are publicly available in the test suites of pymatgen, sisl, Quantum ESPRESSO and cclib; the MgH$_2$:Fe outputs are available from the author upon reasonable request.
+\appendix
+\input{appendix/implementation_map}
+\bibliographystyle{unsrtnat}
+\bibliography{bib/references}
+\end{document}

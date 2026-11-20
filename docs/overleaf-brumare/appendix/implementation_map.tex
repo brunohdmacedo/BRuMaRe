@@ -1,0 +1,31 @@
+\section{Implementation map}\label{app:map}
+Table~\ref{tab:map} relates each method to the functions that implement it in the command-line program (\code{brumare.py}) and in the web/desktop application (\code{index.html}).
+
+\begin{small}
+\begin{longtable}{@{}p{0.30\linewidth}p{0.33\linewidth}p{0.31\linewidth}@{}}
+\caption{Where each method is implemented.}\label{tab:map}\\\toprule
+Method & Python (\code{brumare.py}) & JavaScript (\code{index.html}) \\\midrule\endfirsthead
+\toprule Method & Python & JavaScript \\\midrule\endhead
+CASTEP readers & \code{read\_bands}, \code{read\_pdos\_bin}, \code{read\_castep\_extra}, \code{read\_castep\_struct}, \code{read\_cell\_struct} & \code{parseBands}, \code{parsePdosBin}, \code{parseCastep}, \code{parseCellStruct} \\
+$\bm{k}$-point alignment & \code{align\_k} & \code{alignK} \\
+VASP reader & \code{read\_vasprun}, \code{load\_vasp} & \code{parseVasprun} \\
+SIESTA readers & \code{read\_siesta\_bands}, \code{read\_siesta\_pdos}, \code{read\_siesta\_rho} & \code{parseSiestaBands}, \code{parseSiestaPDOS}, \code{parseSiestaRHO} \\
+QE and ORCA readers & \code{read\_qe\_xml}, \code{read\_orca} & \code{parseQE}, \code{parseORCA}, \code{orcaToSeed} \\
+Code detection, virtual registry & \code{detect\_code}, \code{prepare\_inputs} & \code{classify} \\
+Band path and labels & \code{kpath} & \code{kPath} \\
+Energy reference, Fermi line & \code{linha\_ef} (original-energy axis) & \code{eWin}, \code{efLines} \\
+DOS and PDOS & \code{gaussian\_dos}, \code{build\_orbitals}, \code{make\_groups} & \code{dosCurve}, \code{getDos}, \code{curveDos}, \code{buildOrbitals}, \code{groupsFor} \\
+Band edges, gaps & \code{band\_edges} & \code{bandEdges} \\
+Effective masses & \code{massas\_efetivas} & analysis tab \\
+Band-gap correction & \code{correcao\_gap}, \code{aplicar\_tesoura} & \code{corrigirGap}, \code{gapCorrHTML} \\
+Brillouin zone and k-path & \code{bz\_compute}, \code{bz\_classify}, \code{bz\_path}, \code{bz\_textos} & \code{bzCompute}, \code{bzClassify}, \code{bzPath}, \code{bzTextos} \\
+Defect analysis & \code{analyze\_defect}, \code{defect\_report} & \code{analyzeDefect}, \code{guessDefect}, \code{renderDefect} \\
+Thermodynamics & \code{thermo} & defect tab \\
+Densities and planes & \code{read\_density}, \code{read\_chgcar}, \code{planes\_report}, \code{density\_report} & \code{parseDenFmt}, \code{parseCHGCAR}, \code{parseCube}, \code{planeFromHKL}, \code{renderPlanes} \\
+Voronoi and Bader & \code{voronoi\_report}, \code{bader\_ongrid}, \code{\_bader\_refinar} & \code{voronoiPartition}, \code{baderPartition} \\
+Density difference & \code{diff\_report} & density-difference tab \\
+VESTA export & \code{vesta\_export} & VESTA package export \\
+Comparison & \code{compare\_report} & comparison tab \\
+Citation tracking & \code{write\_citation} & \code{bibUsado} \\\bottomrule
+\end{longtable}
+\end{small}

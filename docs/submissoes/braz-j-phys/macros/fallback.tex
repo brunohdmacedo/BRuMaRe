@@ -1,0 +1,15 @@
+% Fallback used ONLY when elsarticle.cls is not installed (Overleaf has it).
+\documentclass[12pt,a4paper]{article}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[numbers,sort&compress]{natbib}
+\newenvironment{frontmatter}{}{\maketitle\BMRabstract}
+\newcommand{\affiliation}[2][]{\gdef\BMRaff{#2}}
+\newcommand{\ead}[1]{} \newcommand{\cortext}[2][]{} \newcommand{\corref}[1]{$^{*}$}
+\makeatletter\renewcommand{\author}[2][]{\gdef\@author{#2}}\makeatother
+\newsavebox{\BMRabsbox}
+\renewenvironment{abstract}{\global\setbox\BMRabsbox\vbox\bgroup\hsize\linewidth\noindent\textbf{Abstract.} }{\egroup}
+\newcommand{\BMRabstract}{\noindent\usebox{\BMRabsbox}\par\medskip}
+\newenvironment{keyword}{\noindent\textbf{Keywords:} \def\sep{; }}{\par}
+\newenvironment{highlights}{\noindent\textbf{Highlights}\begin{itemize}}{\end{itemize}}
+\date{}
+\IfFileExists{elsarticle-num.bst}{\def\BMRbibstyle{elsarticle-num}}{\def\BMRbibstyle{unsrtnat}}

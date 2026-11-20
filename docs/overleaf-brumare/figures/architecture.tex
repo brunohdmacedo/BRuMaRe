@@ -1,0 +1,18 @@
+% Architecture diagram (TikZ)
+\resizebox{\linewidth}{!}{\begin{tikzpicture}[node distance=4mm and 6mm, every node/.style={font=\small},
+  box/.style={draw=bmc,rounded corners=2pt,fill=bmc!6,align=center,minimum height=8mm,inner sep=3pt},
+  lay/.style={draw=gray!60,rounded corners=4pt,inner sep=5pt}]
+\node[box] (c1) {CASTEP\\\scriptsize .bands .pdos\_bin .castep .cell .den\_fmt};
+\node[box,right=of c1] (c2) {VASP\\\scriptsize vasprun.xml KPOINTS CHGCAR};
+\node[box,right=of c2] (c3) {SIESTA\\\scriptsize .bands .EIG .PDOS .RHO .out};
+\node[box,right=of c3] (c4) {QE\\\scriptsize data-file-schema.xml};
+\node[box,right=of c4] (c5) {ORCA\\\scriptsize .out};
+\node[box,below=9mm of c3,minimum width=13cm] (dm) {Common data model: bands (Ha), projections, structure (\AA), density (e\,\AA$^{-3}$), $E_\mathrm{F}$ as written by the code};
+\node[box,below=of dm,minimum width=13cm] (an) {Analysis layer: DOS/PDOS · band edges, gaps, $m^*$ · fat bands · defects and distortion · thermodynamics · densities, Voronoi, Bader, $\Delta\rho$ · comparison · citation};
+\node[box,below=9mm of an,xshift=-4.3cm] (f1) {Web application\\\scriptsize JavaScript, Plotly};
+\node[box,below=9mm of an] (f2) {Desktop application\\\scriptsize same interface, offline};
+\node[box,below=9mm of an,xshift=4.3cm] (f3) {Command line\\\scriptsize Python, numpy, matplotlib};
+\foreach \c in {c1,c2,c3,c4,c5} \draw[-{Latex[length=2mm]},gray] (\c.south) -- (dm.north -| \c.south);
+\draw[-{Latex[length=2mm]},gray] (dm) -- (an);
+\foreach \f in {f1,f2,f3} \draw[-{Latex[length=2mm]},gray] (an.south -| \f.north) -- (\f.north);
+\end{tikzpicture}}

@@ -1,0 +1,11 @@
+\begin{table}[t]\centering\small
+\caption{Readers and unit conversions. $1\,\mathrm{Ha}=27.211386245988$\,eV (CODATA 2018), $1\,\mathrm{Bohr}=0.529177$\,\AA.}\label{tab:readers}
+\begin{tabularx}{\linewidth}{@{}lXX@{}}\toprule
+Code & Files and content & Conversion and remarks \\\midrule
+CASTEP & \code{.bands} (Ha, fractional $\bm{k}$), \code{.pdos\_bin} (Fortran unformatted, big-endian), \code{.castep} (Mulliken, energies, forces, valence $Z$), \code{.cell}, \code{.den\_fmt} & \code{.den\_fmt} stores $\rho V$; $\bm{k}$-points of \code{.pdos\_bin} aligned by coordinates \\
+VASP & \code{vasprun.xml} (eigenvalues, occupations, PAW projections, structures, energies), \code{KPOINTS} (labels), \code{CHGCAR} & streaming XML parser; CHGCAR stores $\rho V$ \\
+SIESTA & \code{.bands} (BandLines/BandPoints), \code{.EIG}+\code{.KP}, \code{.PDOS} (XML curves), \code{.STRUCT\_OUT}/\code{.XV}, \code{.RHO}, \code{.out} & $\rho$ in e\,Bohr$^{-3}$; \code{.KP} in Cartesian Bohr$^{-1}$ \\
+QE & \code{data-file-schema.xml} (eigenvalues in Ha, $\bm{k}$ in $2\pi/a$, positions in Bohr, energies) & $\bm{k}_\mathrm{frac}=\bm{k}_\mathrm{cart}\mathbf A^{T}/2\pi$ \\
+ORCA & \code{.out} (orbital energies and occupations, final energy, geometry, Mulliken/Löwdin charges) & molecule: one ``$\bm{k}$-point'', box of $\max(\text{extent})+12$\,\AA \\\bottomrule
+\end{tabularx}
+\end{table}

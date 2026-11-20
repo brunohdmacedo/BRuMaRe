@@ -1,0 +1,108 @@
+\section{Methods}\label{sec:methods}
+\subsection{Energy reference and the Fermi level}
+Let $\eF^{s}$ be the Fermi energy written by the code for spin $s$. \BMR\ never recomputes it. Energies are displayed either in the \emph{original} scale (default), with a dash-dotted line at $\eF$ and its value printed on every panel, or shifted,
+\begin{equation}
+\tilde\varepsilon_{n\bm{k} s}=\varepsilon_{n\bm{k} s}-E_\mathrm{ref}^{s},\qquad E_\mathrm{ref}^{s}\in\Big\{\eF^{s},\ \eF^{\uparrow},\ \eF^{\downarrow},\ \tfrac12(\eF^{\uparrow}+\eF^{\downarrow}),\ 0\Big\}.
+\end{equation}
+The plotting window $[E_\mathrm{min},E_\mathrm{max}]$ is always defined relative to $\eF$, so that in the original scale the axis spans $[\bar E_\mathrm{F}+E_\mathrm{min},\bar E_\mathrm{F}+E_\mathrm{max}]$ for any material. Because absolute eigenvalues of different calculations (and, a fortiori, of different codes) refer to different potential references, multi-calculation comparisons always align each calculation to its own $\eF$.
+
+\subsection{Band path and high-symmetry labels}
+With direct lattice vectors as rows of $\mathbf A$ (Bohr), the reciprocal lattice is $\mathbf B=2\pi(\mathbf A^{-1})^{T}$ and the Cartesian $\bm{k}$-vector is $\bm{k}_\mathrm{cart}=\bm{k}_\mathrm{frac}\mathbf B$. The abscissa of the band plot is the cumulative path length
+\begin{equation}
+x_i=\sum_{j=1}^{i}\lVert(\bm{k}_j-\bm{k}_{j-1})\mathbf B\rVert ,
+\end{equation}
+where steps larger than a threshold are treated as discontinuities (zero length, composite label). Vertices are detected where the direction of $\bm{k}_j-\bm{k}_{j-1}$ changes or a repeated point occurs, and are labelled by matching their fractional coordinates to the high-symmetry points of the detected Bravais lattice \cite{setyawan2010}; user labels override the detection.
+
+\subsection{Density of states and projections}
+The total and projected densities of states are Gaussian-broadened sums over bands and $\bm{k}$-points,
+\begin{gather}
+g_s(E)=\sum_{\bm{k}}w_{\bm{k}}\sum_n\delta_\sigma(E-\varepsilon_{n\bm{k} s}),\qquad
+\delta_\sigma(x)=\frac{e^{-x^2/2\sigma^2}}{\sigma\sqrt{2\pi}},\\
+g^{G}_s(E)=\sum_{\bm{k}}w_{\bm{k}}\sum_n\Big(\sum_{\alpha\in G}p^{\alpha}_{n\bm{k} s}\Big)\delta_\sigma(E-\varepsilon_{n\bm{k} s}),
+\end{gather}
+with normalised weights $\sum_{\bm{k}}w_{\bm{k}}=1$. A group $G$ is a set of orbitals defined at one of five levels: element, angular momentum $l$, pseudopotential shell $(n,l)$, magnetic component $m$ (real harmonics), or individual atoms; for $d$ orbitals the octahedral $t_{2g}=\{d_{xy},d_{yz},d_{xz}\}$ and $e_g=\{d_{z^2},d_{x^2-y^2}\}$ sums are provided (in the Cartesian axes of the cell). For spin-polarised systems the spin-down DOS is optionally plotted with negative sign. Integrated occupations and the $d$-band centre \cite{hammer1995} are
+\begin{equation}
+N^{G}_s=\int_{-\infty}^{\eF}g^{G}_s(E)\,dE,\qquad \varepsilon_d=\frac{\int E\,g^{d}(E)\,dE}{\int g^{d}(E)\,dE},
+\end{equation}
+the latter evaluated up to $\eF$ (occupied) and over the whole window. The spin polarisation at the Fermi level,
+\begin{equation}
+P=\frac{N_\uparrow(\eF)-N_\downarrow(\eF)}{N_\uparrow(\eF)+N_\downarrow(\eF)},
+\end{equation}
+is reported only when $N_\uparrow+N_\downarrow>0.05$ states/eV; otherwise $\eF$ lies in a gap and the ratio is undefined. When a code supplies broadened curves (SIESTA), $g^{G}_s$ is obtained by linear interpolation of the summed curves.
+
+\subsection{Band edges, gaps and effective masses}
+For $N_s$ electrons in spin channel $s$ (half of the total for spin-degenerate runs), the highest occupied and lowest unoccupied bands are $N_s$ and $N_s+1$:
+\begin{equation}
+E_\mathrm{VBM}^{s}=\max_{\bm{k}}\varepsilon_{N_s,\bm{k} s},\qquad E_\mathrm{CBM}^{s}=\min_{\bm{k}}\varepsilon_{N_s+1,\bm{k} s},\qquad E_g^{s}=E_\mathrm{CBM}^{s}-E_\mathrm{VBM}^{s},
+\end{equation}
+and the total gap of a spin-polarised system is $\min_s E_\mathrm{CBM}^{s}-\max_s E_\mathrm{VBM}^{s}$. The gap is direct when both extrema occur at the same $\bm{k}$. If $\eF$ lies inside a band within 5\,meV, the channel is flagged as metallic or partially occupied; for fractional occupations (smearing) the electron count is taken from the occupations. Effective masses are obtained by parabolic fits around the extremum along the path,
+\begin{equation}
+E(k)\simeq c_0+c_1(k-k_0)+c_2(k-k_0)^2,\qquad \frac{m^*}{m_e}=\pm\frac{\hbar^2}{2m_e\,c_2},\qquad \frac{\hbar^2}{m_e}=7.619964\ \mathrm{eV\,\text{\AA}^2},
+\end{equation}
+with the positive (negative) sign for electrons (holes). If the extremum lies inside a segment, a five-point fit with a linear term locates the true minimum between $\bm{k}$-points; if it lies at a vertex (e.g.\ $\Gamma$), one mass is reported for each direction using $E=a(k-k_0)^2+c$. Masses are computed only for continuous paths and when $\eF$ is in the gap.
+
+
+\subsection{Band-gap correction}\label{sec:gapcorr}
+Semilocal functionals (LDA, GGA) systematically underestimate band gaps, typically by 30–100\%. The origin is not a numerical deficiency of any particular code but the interpretation of Kohn–Sham eigenvalues as quasiparticle energies: the Kohn–Sham gap lacks the derivative discontinuity $\Delta_\mathrm{xc}$ of the exchange-correlation potential \cite{perdew1983,sham1983}, so that $E_g=E_g^\mathrm{KS}+\Delta_\mathrm{xc}$, and semilocal approximations additionally suffer from delocalisation error \cite{morisanchez2008}. A proper treatment requires hybrid functionals such as HSE06 \cite{heyd2003}, meta-GGAs, DFT+U or many-body ($GW$) corrections, which must be applied in the electronic-structure calculation itself. As a post-processing alternative, \BMR\ implements the \emph{scissor} correction \cite{levine1989}, a rigid upward shift of the unoccupied bands,
+\begin{equation}
+\varepsilon^\mathrm{corr}_{n\bm{k} s}=\varepsilon_{n\bm{k} s}+\Delta\,\Theta(n-N_s-\tfrac12),\qquad E_g^\mathrm{corr}=E_g^\mathrm{DFT}+\Delta,
+\end{equation}
+where $\Theta$ is the Heaviside step and $N_s$ the number of occupied bands in channel $s$; occupied bands and the Fermi energy written by the code are left untouched. Three choices of $\Delta$ are offered: (i) a user-supplied value; (ii) a reference gap $E_g^\mathrm{ref}$ (experimental, hybrid or $GW$), $\Delta=E_g^\mathrm{ref}-E_g^\mathrm{DFT}$; and (iii) the empirical linear model of Morales-García, Valero and Illas \cite{morales2017}, obtained from 66 semiconductors and insulators with experimental gaps between 0.1 and 9\,eV,
+\begin{equation}
+E_g^{G_0W_0}=1.358\,E_g^\mathrm{PBE}+0.904\ \mathrm{eV}\quad(r=0.91),\qquad E_g^\mathrm{exp}=0.998\,E_g^{G_0W_0}+0.014\ \mathrm{eV},
+\end{equation}
+which gives $\Delta=0.358\,E_g^\mathrm{PBE}+0.904$\,eV. The model was fitted to PBE gaps and is not used for LDA, metals or vanishing PBE gaps; the authors excluded six strongly correlated transition-metal oxides (MnO, ZnO, CoO, SnO$_2$, CuAlO$_2$, CuInO$_2$) that deviate by about 2\,eV, and report mean absolute errors of 0.23\,eV ($G_0W_0$ versus experiment) for non-oxides. Because a scissor is a rigid shift, it leaves band dispersions and effective masses unchanged and cannot correct the position of empty defect levels within the gap; in defective supercells, $\Delta$ is best determined from the pure host. All three options are available in every front-end, the original DFT gap is always reported next to the corrected one, and the model reference is added to the session's BibTeX file when used.
+
+
+\subsection{Brillouin zone and band paths}\label{sec:bz}
+The first Brillouin zone is constructed as the Wigner--Seitz cell of the reciprocal lattice, $\mathrm{BZ}=\{\bm k:\ \bm k\cdot\mathbf G\le\tfrac12|\mathbf G|^2\ \forall\,\mathbf G\neq0\}$. The reciprocal basis $\mathbf b_i=2\pi(\mathbf a_j\times\mathbf a_k)/V$ is first reduced with the LLL algorithm \cite{lenstra1982}; the Bragg planes of the 26 shortest $\mathbf G$ vectors are intersected three at a time, the intersections that satisfy every inequality become vertices, the vertices lying on each plane form a face, and the geometric volume $\sum_f\tfrac13A_f|\mathbf G_f|/2$ is checked against $V_\mathrm{BZ}=(2\pi)^3/V$ (the search is enlarged to $|n_i|\le2$ otherwise). The lattice type is recognised from the shape of the zone (cube, square or rectangular prism, truncated octahedron, rhombic dodecahedron or hexagonal prism) after an optional symmetry tolerance (0.5$^\circ$ and 0.5\% by default) that idealises slightly distorted relaxed cells. High-symmetry points are face centres $\mathbf G/2$, edge midpoints and vertices, labelled following Setyawan and Curtarolo \cite{setyawan2010}; consecutive points of the standard path are taken as the nearest equivalent copies, so that every segment follows a symmetry line. Fractional coordinates $k_i=\mathbf a_i\cdot\bm k/2\pi$ refer to the cell used in the calculation, and ready-to-use inputs are written for CASTEP (\code{SPECTRAL\_KPOINT\_PATH}), VASP (line-mode \code{KPOINTS}), Quantum ESPRESSO (\code{K\_POINTS crystal\_b}) and SIESTA (\code{BandLines}), together with Monkhorst--Pack meshes $n_i=\lceil|\mathbf b_i|/\Delta k\rceil$. When only the lattice is known, low-symmetry lattices receive an automatic path through the face centres, and SeeK-path \cite{hinuma2017} provides the alternative crystallographic convention. When atoms are available, the space group is first determined with moyo \cite{moyo}, the successor of spglib \cite{togo2024spglib} (the same library family used by SeeK-path), through identical Python and WebAssembly builds; the zone is then built on the standardized primitive cell, which is exported together with the conventional cell, and all 14 Bravais lattices (the 25 cases of Setyawan--Curtarolo, from CUB to TRI) receive their standard points and paths, defined in the primitive basis of the original paper, mapped onto the standardized basis by an integer unimodular transformation and accepted only if every point lies on the zone surface; for triclinic lattices the reduced reciprocal basis with all-acute or all-obtuse angles of minimal norm is used. Structures are read from CIF (with expansion of the symmetry operations), POSCAR, CASTEP \code{.cell}, XSF, Quantum ESPRESSO input and extended XYZ files, from the Crystallography Open Database, or from a built-in library of 51 materials with literature lattice parameters.
+
+\subsection{Projected (fat) bands}
+In projected-band plots the marker size is $s_{n\bm{k}}=s_\mathrm{max}\sum_{\alpha\in G}p^{\alpha}_{n\bm{k} s}$, drawn on top of the plain band structure, with one panel per group or overlaid groups.
+
+\subsection{Structure, point defects and distortion}
+Interatomic vectors use the minimum-image convention, $\Delta\mathbf f=\mathbf f_j-\mathbf f_i-\operatorname{round}(\mathbf f_j-\mathbf f_i)$ and $d_{ij}=\lVert\Delta\mathbf f\,\mathbf A\rVert$. \emph{With a pure reference structure}, every defective-cell atom is matched to the nearest reference site of the same or a different species; unmatched reference sites are vacancies, sites occupied by another species are substitutions and unmatched defect atoms are interstitials. \emph{Without a reference}, the defect is located by species rarity and coordination anomalies, and local quantities are compared with the "bulk" of the same supercell (atoms farther than a cutoff from the defect). The first coordination shell contains the neighbours with $d<f\,d_\mathrm{min}$ ($f=1.25$ by default). For a polyhedron with $n$ ligands at distances $d_i$, mean $\bar d$, and $m$ ligand–centre–ligand angles $\theta_j$, \BMR\ reports Baur's distortion index \cite{baur1974}, the quadratic elongation and angle variance of Robinson, Gibbs and Ribbe \cite{robinson1971}, and Hoppe's effective coordination number \cite{hoppe1979}:
+\begin{gather}
+D=\frac1n\sum_{i=1}^{n}\frac{|d_i-\bar d|}{\bar d},\qquad
+\langle\lambda\rangle=\frac1n\sum_{i=1}^{n}\Big(\frac{d_i}{l_0}\Big)^2,\qquad
+\sigma^2=\frac{1}{m-1}\sum_{j=1}^{m}(\theta_j-\theta_0)^2,\\
+\mathrm{ECoN}=\sum_{i}\exp\!\Big[1-\Big(\frac{d_i}{d_\mathrm{av}}\Big)^6\Big],\qquad
+d_\mathrm{av}=\frac{\sum_i d_i\exp[1-(d_i/d_\mathrm{min})^6]}{\sum_i\exp[1-(d_i/d_\mathrm{min})^6]},
+\end{gather}
+where $l_0$ is the centre-to-vertex distance of the regular polyhedron of the same volume and $\theta_0=90^\circ$ (octahedron) or $109.47^\circ$ (tetrahedron). The polyhedron volume is that of the convex hull of the ligands. With a reference, the displacement field $\mathbf u_i=\Delta\mathbf f_i\mathbf A$ is reported as a function of the distance to the defect, together with the perturbation radius beyond which $|\mathbf u_i|$ falls below a threshold, and the relative cell-volume change $\Delta V/V$.
+
+\subsection{Defect and hydride thermodynamics}
+With chemical potentials $\mu_i$ given by the energy per atom of elemental references computed with the same parameters (e.g.\ hcp Mg, bcc Fe and $\mu_\mathrm{H}=\tfrac12E(\mathrm H_2)$), the defect formation energy \cite{freysoldt2014,vandewalle2004}, the hydride formation enthalpy per mole of H$_2$, the defect effect and the desorption temperature are
+\begin{gather}
+E_f=E_\mathrm{def}-E_\mathrm{pure}-\sum_i n_i\mu_i,\qquad
+\Delta H_f=\frac{E-\sum_iN_i\mu_i}{N_\mathrm H/2},\qquad
+\Delta\Delta H=\Delta H_f^\mathrm{def}-\Delta H_f^\mathrm{pure},\\
+T_d=\frac{\Delta H_f}{\Delta S},\qquad \Delta S\simeq S^\circ(\mathrm H_2,\mathrm g)=130.7\ \mathrm{J\,mol^{-1}K^{-1}},
+\end{gather}
+with $n_i>0$ for added atoms and $\Delta S$ taken from JANAF \cite{chase1998janaf}. The hydrogen-removal energy is $E_\mathrm{rem}=E(\text{H-deficient})+\mu_\mathrm H-E$, and the gravimetric and volumetric capacities are $w_\mathrm H=N_\mathrm H m_\mathrm H/\sum_iN_im_i$ and $\rho_\mathrm H=N_\mathrm H m_\mathrm H/V$. For metals the total energy is extrapolated to zero smearing ($E-\tfrac12TS$); the energy type is selectable. These are electronic energies at 0\,K without zero-point or vibrational contributions, so $T_d$ is an estimate suitable for comparing trends.
+
+\subsection{Charge densities}
+CASTEP (\code{.den\_fmt}) and VASP (\code{CHGCAR}) store $\rho V$; Gaussian cube files and the SIESTA binary density (\code{.RHO}) store $\rho$ in e\,Bohr$^{-3}$. All are converted to $\rho$ in e\,\AA$^{-3}$ and checked through $\int\rho\,dV=(V/N)\sum_{\mathbf r}\rho(\mathbf r)=N_e$. Spin densities $\rho_\uparrow-\rho_\downarrow$, $|\rho_\uparrow-\rho_\downarrow|$ and $\zeta=(\rho_\uparrow-\rho_\downarrow)/\rho$ are derived when both channels are present. Off-grid values are obtained by periodic trilinear interpolation,
+\begin{equation}
+\rho(\mathbf f)=\sum_{a,b,c\in\{0,1\}}\rho_{i+a,j+b,k+c}\,\big[(1-t_1)^{1-a}t_1^{a}\big]\big[(1-t_2)^{1-b}t_2^{b}\big]\big[(1-t_3)^{1-c}t_3^{c}\big],
+\end{equation}
+with $t_\nu$ the fractional offsets inside the grid cell. Isosurfaces use marching cubes \cite{lorensen1987} on a Cartesian resampling. Two-dimensional slices are defined by three atoms or by Miller indices $(hkl)$; the multiplicity of the supercell with respect to the primitive (base) cell is detected, so that indices refer to the material (e.g.\ rutile MgH$_2$) rather than to the supercell, and the interplanar spacing is $d_{hkl}=2\pi/\lVert(h,k,l)\,\mathbf B_\mathrm{base}\rVert$. A gallery shows several planes through the defect, a slider shifts the plane along its normal, and line profiles along bonds report the density minimum as an approximation to the bond critical point of the quantum theory of atoms in molecules \cite{bader1990}.
+
+\subsection{Atomic charges and moments}
+Three partitions are provided. Mulliken populations \cite{mulliken1955,segall1996} are read from CASTEP and ORCA. In the \emph{Voronoi} partition \cite{voronoi1908} each grid point belongs to the nearest atom, or, in the radical (power) variant \cite{gellatly1982}, to the atom minimising $\lVert\mathbf r-\mathbf R_a\rVert^2-r_a^2$ with covalent radii $r_a$ \cite{cordero2008}:
+\begin{equation}
+N_a=\int_{V_a}\rho\,dV,\qquad q_a=Z_a^\mathrm{val}-N_a,\qquad m_a=\int_{V_a}(\rho_\uparrow-\rho_\downarrow)\,dV .
+\end{equation}
+In the \emph{Bader} partition \cite{bader1990}, the on-grid algorithm of Henkelman, Arnaldsson and Jónsson \cite{henkelman2006} assigns to each grid point the neighbour (among 26) of steepest ascent, $\arg\max_{\mathbf r'}[\rho(\mathbf r')-\rho(\mathbf r)]/\lVert\mathbf r'-\mathbf r\rVert$. Following these pointers leads to density maxima; \BMR\ resolves the chains by pointer jumping (repeated composition $t\leftarrow t\circ t$, converging in $O(\log L)$ vectorised passes for chains of length $L$), and assigns each maximum (basin) to the nearest atom. Boundary points are then reassigned with the near-grid method of Tang et al.\ \cite{tang2009bader}, which follows the true density gradient with a correction vector that accumulates the difference between the ideal and the on-grid step and so removes the lattice bias; the trajectories of all boundary points are advanced simultaneously, and the procedure is repeated until the boundaries no longer change. The browser application uses the on-grid assignment alone, which is faster and adequate for interactive exploration.
+
+\subsection{Density difference and charge redistribution}
+For a defective density $\rho_A$ and references $\rho_B$ (pure host, preferably in the defect geometry) and optionally $\rho_C$ (isolated dopant), the difference $\Delta\rho=\pm(\rho_A-\rho_B-\rho_C)$ is evaluated on the grid of $\rho_A$ (references are resampled trilinearly when grids differ). \BMR\ reports
+\begin{gather}
+Q_\pm=\int_{\Delta\rho\gtrless0}\Delta\rho\,dV,\qquad \Delta N=Q_++Q_-,\qquad Q_\mathrm{red}=\tfrac12\int|\Delta\rho|\,dV,\\
+\mathbf p=\int(\mathbf r-\mathbf r_c)\,\Delta\rho\,dV\ \ [1\ e\,\text{\AA}=4.80320\ \mathrm D],\qquad
+\Delta Q(r)=\int_0^{r}\overline{\Delta\rho}(r')\,4\pi r'^2\,dr',
+\end{gather}
+where $\overline{\Delta\rho}(r)$ is the spherical average around the defect centre $\mathbf r_c$ (minimum-image distances), and the radii $R_{50}$ and $R_{90}$ that enclose 50\% and 90\% of $\int|\Delta\rho|dV$. The dipole depends on the origin when $\Delta N\neq0$, which is reported. Planar averages along each lattice vector, the per-atom charge transfer in Voronoi cells and the density minimum of every dopant–ligand bond compared with the same host bond in the pure structure complete the analysis.
+
+\subsection{Comparison of calculations and citation tracking}
+Any number of calculations (from any code) can be compared in a table with one column per calculation (energies, $E_f$, $\Delta H$, $\Delta\Delta H$, $T_d$, $\eF$, gaps and their type, $N(\eF)$, polarisation, $d$ occupation and moment, charges, density at the bond minimum, coordination, bond lengths, distortion indices, displacements, $\Delta V/V$, cell parameters and residual force), exported as \code{.dat}, and in plots of overlaid DOS and PDOS (aligned at each $\eF$), side-by-side band structures, bar charts and density slices on a common plane. Mesh calculations without a band path are excluded from band panels. During a session, \BMR\ records which analyses were used and generates a BibTeX file containing the software itself, the electronic-structure codes whose outputs were loaded and the method references actually invoked (e.g.\ Setyawan–Curtarolo paths \cite{setyawan2010}, Voronoi or Bader partitions, Robinson distortion indices, Mulliken analysis, VESTA export).

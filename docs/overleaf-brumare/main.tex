@@ -1,0 +1,69 @@
+% =====================================================================================
+%  BrUMaRe — manuscript for Computer Physics Communications (Elsevier),
+%  section "Computer Programs in Physics".
+%
+%  Overleaf: Menu -> Compiler: pdfLaTeX ; Main document: main.tex
+%  The official Elsevier class (elsarticle) is installed on Overleaf. If it is not
+%  available (e.g. a minimal local TeX installation), a compatible fallback is used.
+% =====================================================================================
+\IfFileExists{elsarticle.cls}{%
+  \documentclass[preprint,review,12pt]{elsarticle}%
+  \biboptions{numbers,sort&compress}%
+  \def\BMRbibstyle{elsarticle-num}%
+}{%
+  \input{macros/fallback}%
+}
+\input{macros/preamble}
+
+\providecommand{\journal}[1]{}
+\journal{Computer Physics Communications}
+
+\begin{document}
+
+\begin{frontmatter}
+\input{frontmatter/title}
+\input{frontmatter/authors}
+\begin{abstract}
+\input{frontmatter/abstract}
+\end{abstract}
+\begin{highlights}
+\input{frontmatter/highlights}
+\end{highlights}
+\begin{keyword}
+\input{frontmatter/keywords}
+\end{keyword}
+\end{frontmatter}
+
+\linenumbers
+
+\section*{Program summary}
+\input{frontmatter/program_summary}
+
+% ---------------- main text ----------------
+\input{sections/01_introduction}
+\input{sections/02_architecture}
+\input{sections/03_input_layer}
+\input{sections/04_methods}
+\input{sections/05_implementation}
+\input{sections/06_validation}
+\input{sections/07_application}
+\input{sections/08_limitations}
+\input{sections/09_conclusions}
+
+% ---------------- back matter ----------------
+\input{backmatter/acknowledgements}
+\input{backmatter/code_availability}
+\input{backmatter/credit}
+\input{backmatter/competing_interests}
+\section*{Declaration of generative AI and AI-assisted technologies in the writing process}
+% REVISE este texto para que descreva exatamente o seu uso de IA (exigência das revistas).
+Generative artificial intelligence (Anthropic's Claude) was used extensively during this work: to help write and refactor parts of the JavaScript and Python source code, to produce translations of the interface and tutorial, to draft documentation, and to assist in drafting and editing this manuscript. The scientific scope, the choice of methods and equations, and the requirements of every analysis were defined by the author. All AI-assisted code was reviewed and verified by the author through the tests described in the Validation section, in particular by comparison with real outputs of CASTEP, VASP, SIESTA, Quantum ESPRESSO and ORCA, by cross-checking the browser and command-line implementations, and by byte-by-byte regression of the CASTEP outputs after every change. The author takes full responsibility for the content of the software and of this publication.
+
+
+\appendix
+\input{appendix/implementation_map}
+
+\bibliographystyle{\BMRbibstyle}
+\bibliography{bib/references}
+
+\end{document}

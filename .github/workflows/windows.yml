@@ -1,0 +1,62 @@
+# Compila o BruMaRe para Windows: BruMaRe.exe (interface IGUAL ao site, offline, janela do Edge/WebView2),
+# brumare.exe (linha de comando)
+# e o instalador BruMaRe-Setup-<versão>.exe. Em tags "v*" publica tudo numa Release.
+name: Windows (.exe e instalador)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dependências
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy matplotlib pillow pywebview pyinstaller moyopy imagecodecs
+      - name: Interface offline (cópia do site em brumare_app/web)
+        run: python tools/montar_app.py
+      - name: Foto do autor (Lattes)
+        shell: pwsh
+        run: |
+          try { Invoke-WebRequest -UseBasicParsing -Uri "https://wwws.cnpq.br/cvlattesweb/pkg_util_img.show_foto?v_cod=K4494050P3" -OutFile assets/autor.jpg; Write-Host "foto ok" }
+          catch { Write-Host "Foto nao baixada: a interface carrega a foto do Lattes quando houver internet." }
+      - name: Executáveis (PyInstaller)
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name BruMaRe --icon assets\brumare.ico --add-data "brumare_app\web;brumare_app\web" --add-data "assets;assets" --collect-all webview --hidden-import clr --exclude-module scipy --exclude-module pandas --exclude-module IPython --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 --exclude-module notebook --exclude-module jedi --exclude-module sympy brumare_gui.py
+          python -m PyInstaller --noconfirm --clean --onefile --console --name brumare --icon assets\brumare.ico --exclude-module scipy --exclude-module pandas --exclude-module IPython --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 --exclude-module notebook --exclude-module jedi --exclude-module sympy --exclude-module tkinter --collect-all moyopy --collect-all imagecodecs brumare.py
+      - name: Teste rápido do executável de linha de comando
+        run: |
+          dist\brumare.exe --versao
+          dist\brumare.exe --sobre
+          dist\brumare.exe -h
+      - name: Instalador (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $v = (Select-String -Path brumare.py -Pattern '^VERSAO = "(.+)"').Matches[0].Groups[1].Value
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$v" packaging\windows\brumare.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BruMaRe-Windows
+          path: |
+            dist/BruMaRe.exe
+            dist/brumare.exe
+            dist/BruMaRe-Setup-*.exe
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/BruMaRe-Setup-*.exe
+            dist/BruMaRe.exe
+            dist/brumare.exe

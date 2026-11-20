@@ -1,0 +1,186 @@
+% Teoria completa do BrUMaRe — compile com: xelatex teoria-brumare && bibtex teoria-brumare && xelatex ×2
+\documentclass[11pt,a4paper]{article}
+\usepackage[no-math]{fontspec}
+\setmainfont{TeX Gyre Termes}\setsansfont{TeX Gyre Heros}\setmonofont{DejaVu Sans Mono}[Scale=0.82]
+% Idioma: no Overleaf pode-se usar \usepackage[brazil]{babel}
+\renewcommand{\contentsname}{Sumário}\renewcommand{\refname}{Referências}\renewcommand{\tablename}{Tabela}
+\usepackage{amsmath,amssymb,bm}
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{graphicx,booktabs,tabularx,array}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{xcolor}\definecolor{bmc}{HTML}{0A8F78}
+\usepackage[colorlinks=true,linkcolor=bmc,citecolor=bmc,urlcolor=bmc]{hyperref}
+\usepackage{xurl,microtype,enumitem}\setlist{itemsep=1pt,topsep=3pt}
+\usepackage{fancyhdr}\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small\textsf{BrUMa\textcolor[HTML]{B26B00}{Re}} — teoria}\fancyhead[R]{\small\color{gray}versão 1.3.0}\fancyfoot[C]{\thepage}
+\newcommand{\BMR}{\textsf{BrUMa\textcolor[HTML]{B26B00}{Re}}}
+\newcommand{\kv}{\mathbf k}\newcommand{\eF}{E_\mathrm{F}}\newcommand{\code}[1]{\texttt{#1}}
+\setlength{\parskip}{3pt}
+\emergencystretch=3em
+\begin{document}
+\begin{titlepage}\centering\vspace*{2.5cm}
+\includegraphics[width=0.55\linewidth]{logo.png}\par\vspace{1.2cm}
+{\sffamily\fontsize{26}{32}\selectfont Teoria completa do BrUMaRe\par}\vspace{0.4cm}
+{\large\color{bmc} Brillouin-zone Utilities for Materials Research\par}\vspace{0.3cm}
+{\normalsize Fundamentos físicos, equações, unidades e algoritmos de todas as análises\par}\vspace{2cm}
+{\large Bruno Henrique Dourado Macedo\footnote{Agradecimento a \textbf{Benedet, R. O.} --- sem ela, isso nunca teria acontecido.}\par}
+{\small PPGFISA, UNILA · Foz do Iguaçu · \url{https://brunohdmacedo.tech/brumare/}\par}
+\vfill
+\begin{minipage}{0.84\linewidth}\centering\small\itshape «Scientia, bonum commune generis humani, ab hominibus nata est ut universam naturam describeret: quod ab omnibus creatur, omnibus reddendum est. Docere est liberare; discere ius est, non privilegium. Ab unoquoque secundum facultates suas, unicuique secundum necessitates suas --- sic et scientia.»\\[4pt]\upshape\color{bmc}--- Bruno Macedo\end{minipage}\par\vspace{0.8cm}
+{\small\color{gray} Versão 1.3.0 · GPL-3.0-or-later\par}
+\end{titlepage}
+\tableofcontents\newpage
+
+\section{Introdução e convenções}
+O \BMR\ analisa saídas de cálculos de estrutura eletrônica baseados na teoria do funcional da densidade (DFT) \cite{hohenberg1964,kohn1965} e de química quântica. Todas as análises operam sobre um modelo de dados comum: autovalores $\varepsilon_{n\kv s}$ em hartree, pontos $\kv$ em coordenadas fracionárias, pesos $w_{\kv}$ normalizados ($\sum_{\kv}w_{\kv}=1$), estruturas em ångström e densidades em e\,Å$^{-3}$. Índices: $n$ banda, $\kv$ vetor de onda, $s\in\{\uparrow,\downarrow\}$ spin, $a$ átomo, $\alpha$ orbital projetado.
+
+\begin{table}[h]\centering\small
+\caption{Constantes e conversões usadas.}
+\begin{tabular}{@{}ll@{}}\toprule
+Grandeza & Valor \\\midrule
+1 hartree & 27,211386245988 eV (CODATA 2018) \\
+1 bohr & 0,529177 Å \\
+$\hbar^2/m_e$ & 7,619964 eV\,Å$^2$ \\
+1 e\,Å & 4,80320 debye \\
+$S^\circ(\mathrm{H_2},\mathrm{g})$ & 130,7 J\,mol$^{-1}$K$^{-1}$ (JANAF \cite{chase1998janaf}) \\\bottomrule
+\end{tabular}\end{table}
+
+\section{Leitura dos programas e unidades}
+\begin{itemize}
+\item \textbf{CASTEP} \cite{clark2005castep}: \code{.bands} (Ha, $\kv$ fracionário, $\eF$ de cada spin), \code{.pdos\_bin} (registros Fortran sem formato, \emph{big-endian}; pesos $p^\alpha_{n\kv s}$), \code{.castep} (Mulliken, energias, forças, camadas do pseudopotencial), \code{.cell} e \code{.den\_fmt} (armazena $\rho V$). Os pontos $\kv$ do \code{.pdos\_bin} são casados pelas coordenadas, não pelo índice.
+\item \textbf{VASP} \cite{kresse1996vasp}: \code{vasprun.xml} (leitura em fluxo; projeções PAW com \code{LORBIT}$\ge$10), \code{KPOINTS} (rótulos) e \code{CHGCAR} ($\rho V$).
+\item \textbf{SIESTA} \cite{soler2002siesta}: \code{.bands} (\emph{BandLines} ou \emph{BandPoints}), \code{.EIG}/\code{.KP}, \code{.PDOS} (curvas já alargadas, interpoladas), \code{.RHO} (e\,bohr$^{-3}$).
+\item \textbf{Quantum ESPRESSO} \cite{giannozzi2009,giannozzi2017}: \code{data-file-schema.xml}; $\kv_\mathrm{frac}=\kv_\mathrm{cart}\mathbf A^{T}/2\pi$.
+\item \textbf{ORCA} \cite{neese2020}: saída \code{.out} (energias e ocupações dos orbitais, energia final, geometria, cargas de Mulliken e Löwdin); a molécula é tratada como um único ``ponto $\kv$''.
+\end{itemize}
+Densidades em $\rho V$ são divididas por $V$ e conferidas por $\int\rho\,dV=(V/N)\sum_{\mathbf r}\rho(\mathbf r)=N_e$.
+
+\section{Nível de Fermi e referência de energia}
+O $\eF^{s}$ é sempre o valor escrito pelo programa; o \BMR\ nunca o recalcula. Por padrão, as energias são mostradas na escala original com uma linha traço-ponto em $\eF$. Opcionalmente,
+\begin{gather}
+\tilde\varepsilon_{n\kv s}=\varepsilon_{n\kv s}-E^{s}_\mathrm{ref},\\
+E^{s}_\mathrm{ref}\in\{\eF^{s},\ \eF^{\uparrow},\ \eF^{\downarrow},\ \tfrac12(\eF^{\uparrow}+\eF^{\downarrow}),\ 0\}.
+\end{gather}
+A janela $[E_\mathrm{min},E_\mathrm{max}]$ é contada a partir de $\eF$. Comparações entre cálculos alinham cada um ao próprio $\eF$, porque energias absolutas de cálculos diferentes têm referências de potencial diferentes.
+
+\section{Rede recíproca, zona de Brillouin e caminho $\kv$}
+\subsection{Rede recíproca}
+Com os vetores de rede $\mathbf a_i$ (linhas de $\mathbf A$) e $V=\mathbf a_1\cdot(\mathbf a_2\times\mathbf a_3)$ \cite{ashcroft1976},
+\begin{gather}
+\mathbf b_1=2\pi\frac{\mathbf a_2\times\mathbf a_3}{V},\quad \mathbf b_2=2\pi\frac{\mathbf a_3\times\mathbf a_1}{V},\quad \mathbf b_3=2\pi\frac{\mathbf a_1\times\mathbf a_2}{V},\\
+\mathbf a_i\cdot\mathbf b_j=2\pi\delta_{ij},\qquad V_\mathrm{ZB}=\frac{(2\pi)^3}{V}.
+\end{gather}
+Um vetor de onda tem coordenadas fracionárias $k_i=\mathbf a_i\cdot\kv/2\pi$, isto é, $\kv=\sum_ik_i\mathbf b_i$; são essas coordenadas que CASTEP, VASP, QE e SIESTA usam.
+
+\subsection{Primeira zona de Brillouin}
+A 1.ª zona é a célula de Wigner--Seitz da rede recíproca: os pontos mais próximos de $\Gamma$ que de qualquer outro $\mathbf G$,
+\begin{equation}
+\mathrm{ZB}=\{\kv:\ \kv\cdot\mathbf G\le\tfrac12|\mathbf G|^2\ \ \forall\,\mathbf G\neq0\}.
+\end{equation}
+Algoritmo: (i) a base recíproca é reduzida pelo método LLL \cite{lenstra1982}; (ii) os 26 vetores $\mathbf G$ mais curtos geram planos de Bragg; (iii) os vértices são as interseções de três planos que satisfazem todas as desigualdades; (iv) cada face é o conjunto de vértices sobre um plano, ordenados angularmente; (v) o volume $\sum_f\tfrac13A_f\,|\mathbf G_f|/2$ é comparado com $(2\pi)^3/V$ e, se diferir, a busca se amplia a $|n_i|\le2$.
+
+\subsection{Simetria cristalina e células padronizadas}
+Quando há átomos, o grupo espacial é determinado pelo moyo \cite{moyo}, sucessor do spglib \cite{togo2024spglib}, com a mesma versão em Python e em WebAssembly. Dadas a rede $\mathbf A$, as posições fracionárias $\mathbf f_a$ e os números atômicos $Z_a$, procuram-se as operações $\{\mathbf R|\mathbf t\}$ que levam o cristal nele mesmo dentro da tolerância \emph{symprec} (distância, em Å):
+\begin{equation}
+\forall a\ \exists b:\ Z_b=Z_a,\qquad \big|\big(\mathbf R\mathbf f_a+\mathbf t-\mathbf f_b-\mathrm{round}(\mathbf R\mathbf f_a+\mathbf t-\mathbf f_b)\big)\mathbf A\big|<\text{symprec}.
+\end{equation}
+O conjunto de operações identifica o grupo (número de 1 a 230, símbolos de Hermann--Mauguin e de Hall), as posições de Wyckoff e as células padronizadas convencional e primitiva. A zona de Brillouin passa a ser construída sobre a primitiva padronizada; todas as 14 redes de Bravais (os 25 casos de Setyawan--Curtarolo \cite{setyawan2010}: CUB, FCC, BCC, TET, BCT1--2, ORC, ORCF1--3, ORCI, ORCC, HEX, RHL1--2, MCL, MCLC1--5 e TRI1a--2b) recebem os pontos padronizados, definidos na base primitiva do artigo e levados à base padronizada por uma matriz inteira unimodular $\mathbf M$ e uma rotação $\mathbf R$, $\mathbf A_\mathrm{p}=\mathbf M\mathbf A_\mathrm{SC}\mathbf R$, aceitos somente se todos os pontos caem na superfície da zona. Na triclínica, usa-se a base recíproca reduzida de menor norma com ângulos todos agudos ou todos obtusos. A verificação revelou que o ponto $F_3$ do MCLC1 no artigo original não está na superfície da zona; ele não pertence ao caminho e é omitido, como no pymatgen. Em 18 estruturas de referência, os módulos $|\bm k|$ coincidem com os do pymatgen até $10^{-8}$\,Å$^{-1}$.
+
+\subsection{Tipo de rede, tolerância e pontos de alta simetria}
+O tipo de rede é reconhecido pela forma da zona: cubo (CUB), prisma de base quadrada (TET), paralelepípedo retangular (ORC), octaedro truncado com 8 hexágonos e 6 quadrados (CFC), dodecaedro rômbico (CCC) e prisma hexagonal (HEX). Para células levemente distorcidas, uma tolerância (padrão 0,5° e 0,5\%, como o \emph{symprec} do spglib) ajusta ângulos próximos de 60°, 90°, 109,47° e 120° e iguala comprimentos quase iguais antes da construção. Os pontos de alta simetria são centros de faces ($\mathbf G/2$), meios de arestas e vértices, rotulados segundo Setyawan e Curtarolo \cite{setyawan2010}; por exemplo, na CFC: $X$ (quadrado), $L$ (hexágono), $W$ (vértice), $K$ (aresta hexágono–hexágono) e $U$ (aresta hexágono–quadrado), com $|X|=2\pi/a$, $|L|=\sqrt3\pi/a$, $|W|=\sqrt5\pi/a$ e $|K|=3\sqrt2\pi/2a$. Em redes de baixa simetria, o caminho é automático e recomenda-se o SeeK-path \cite{hinuma2017}.
+
+\subsection{Caminho e malhas}
+Entre pontos consecutivos escolhem-se as cópias equivalentes mais próximas, para que cada segmento seja uma linha de simetria. O número de pontos de um segmento é $n=\max(2,\mathrm{round}(\rho_k\,|\kv_j-\kv_i|))$, com $\rho_k$ em pontos por Å$^{-1}$, e a abscissa do gráfico de bandas é o comprimento acumulado $x_i=\sum_{j\le i}|(\kv_j-\kv_{j-1})\mathbf B|$, com descontinuidades de comprimento nulo. A malha Monkhorst--Pack \cite{monkhorst1976} sugerida é
+\begin{equation}
+n_i=\left\lceil\frac{|\mathbf b_i|}{\Delta k}\right\rceil .
+\end{equation}
+
+\section{Densidade de estados e projeções}
+\begin{gather}
+g_s(E)=\sum_{\kv}w_{\kv}\sum_n\delta_\sigma(E-\varepsilon_{n\kv s}),\qquad \delta_\sigma(x)=\frac{e^{-x^2/2\sigma^2}}{\sigma\sqrt{2\pi}},\\
+g^{G}_s(E)=\sum_{\kv}w_{\kv}\sum_n\Big(\sum_{\alpha\in G}p^\alpha_{n\kv s}\Big)\delta_\sigma(E-\varepsilon_{n\kv s}).
+\end{gather}
+Os grupos $G$ podem ser elemento, momento angular $l$, camada $(n,l)$, componente $m$ (harmônicos reais; $t_{2g}=\{d_{xy},d_{yz},d_{xz}\}$, $e_g=\{d_{z^2},d_{x^2-y^2}\}$) ou átomos. Ocupações e centro da banda $d$ \cite{hammer1995}:
+\begin{gather}
+N^{G}_s=\int_{-\infty}^{\eF}g^{G}_s\,dE,\qquad \varepsilon_d=\frac{\int E\,g^d(E)\,dE}{\int g^d(E)\,dE},\\ P=\frac{N_\uparrow(\eF)-N_\downarrow(\eF)}{N_\uparrow(\eF)+N_\downarrow(\eF)}\ \ (N_\uparrow+N_\downarrow>0{,}05).
+\end{gather}
+
+\section{Bordas, gap e massa efetiva}
+Com $N_s$ elétrons no spin $s$, as bandas ocupada e vazia de fronteira são $N_s$ e $N_s+1$:
+\begin{equation}
+E^{s}_\mathrm{VBM}=\max_{\kv}\varepsilon_{N_s,\kv s},\qquad E^{s}_\mathrm{CBM}=\min_{\kv}\varepsilon_{N_s+1,\kv s},\qquad E_g=\min_sE^{s}_\mathrm{CBM}-\max_sE^{s}_\mathrm{VBM}.
+\end{equation}
+A contagem de elétrons é imune a cruzamentos numéricos de $\eF$ (por exemplo, 0,04\,meV no CASTEP), que fariam um critério baseado em $\eF$ classificar um isolante como metal. Em moléculas (ORCA), é o gap HOMO--LUMO. A massa efetiva vem do ajuste
+\begin{equation}
+E(k)\simeq c_0+c_1(k-k_0)+c_2(k-k_0)^2,\qquad \frac{m^*}{m_e}=\pm\frac{\hbar^2}{2m_e c_2};
+\end{equation}
+o termo linear localiza o extremo verdadeiro entre pontos $\kv$ (Si: 0,94\,$m_e$, experimental 0,92\,$m_e$). Em vértices, dá-se uma massa por direção.
+
+\section{Correção do gap}
+O gap de Kohn--Sham de funcionais semilocais subestima o gap fundamental por falta da descontinuidade da derivada \cite{perdew1983,sham1983} e por erro de deslocalização \cite{morisanchez2008}. A tesoura \cite{levine1989} desloca as bandas desocupadas:
+\begin{gather}
+\varepsilon^\mathrm{corr}_{n\kv s}=\varepsilon_{n\kv s}+\Delta\,\Theta(n-N_s-\tfrac12),\qquad \Delta=E_g^\mathrm{ref}-E_g^\mathrm{DFT},\\
+E_g^{G_0W_0}=1{,}358\,E_g^\mathrm{PBE}+0{,}904\ \mathrm{eV}\quad\text{(modelo empírico \cite{morales2017})}.
+\end{gather}
+Ocupadas e $\eF$ não mudam; a dispersão e as massas também não. Correções reais exigem HSE06 \cite{heyd2003}, meta-GGA ou DFT+U.
+
+\section{Bandas projetadas}
+O tamanho do marcador é $s_{n\kv}=s_\mathrm{max}\sum_{\alpha\in G}p^\alpha_{n\kv s}$.
+
+\section{Estrutura, defeitos e distorção}
+Distâncias usam a imagem mínima, $\Delta\mathbf f=\mathbf f_j-\mathbf f_i-\mathrm{round}(\mathbf f_j-\mathbf f_i)$, $d_{ij}=|\Delta\mathbf f\,\mathbf A|$. Com a estrutura pura, cada átomo é casado ao seu sítio (vacância, substitucional ou intersticial); sem ela, compara-se com o ``bulk'' da própria supercélula. A 1.ª camada tem $d<f\,d_\mathrm{min}$ ($f=1{,}25$). Índices de distorção \cite{baur1974,robinson1971,hoppe1979}:
+\begin{gather}
+D=\frac1n\sum_i\frac{|d_i-\bar d|}{\bar d},\quad \langle\lambda\rangle=\frac1n\sum_i\Big(\frac{d_i}{l_0}\Big)^2,\quad \sigma^2=\frac{1}{m-1}\sum_j(\theta_j-\theta_0)^2,\quad
+\mathrm{ECoN}=\sum_ie^{1-(d_i/d_\mathrm{av})^6},
+\end{gather}
+com $l_0$ a distância centro--vértice do poliedro regular de mesmo volume e $\theta_0=90^\circ$ (octaedro) ou $109{,}47^\circ$ (tetraedro).
+
+\section{Termodinâmica}
+Energia de formação de defeitos \cite{freysoldt2014,vandewalle2004}, entalpia do hidreto, temperatura de dessorção e capacidade:
+\begin{gather}
+E_f=E_\mathrm{def}-E_\mathrm{puro}-\sum_in_i\mu_i,\qquad \Delta H_f=\frac{E-\sum_iN_i\mu_i}{N_\mathrm H/2},\qquad T_d=\frac{\Delta H_f}{\Delta S},\qquad \mu_\mathrm H=\tfrac12E(\mathrm H_2),\\
+E_\mathrm{rem}=E(\text{sem H})+\mu_\mathrm H-E,\qquad w_\mathrm H=\frac{N_\mathrm Hm_\mathrm H}{\sum_iN_im_i}.
+\end{gather}
+São energias eletrônicas a 0\,K, sem energia de ponto zero: $T_d$ serve para comparar tendências.
+
+\section{Densidade de carga}
+Valores fora da grade vêm de interpolação trilinear periódica,
+\begin{equation}
+\rho(\mathbf f)=\sum_{a,b,c\in\{0,1\}}\rho_{i+a,j+b,k+c}\prod_{\nu}\big[(1-t_\nu)^{1-a_\nu}t_\nu^{a_\nu}\big].
+\end{equation}
+Cortes por $(hkl)$ usam a célula base detectada (multiplicidade da supercélula), com $d_{hkl}=2\pi/|(h,k,l)\mathbf B_\mathrm{base}|$; isossuperfícies usam \emph{marching cubes} \cite{lorensen1987}; o mínimo de $\rho$ ao longo de uma ligação aproxima o ponto crítico de ligação \cite{bader1990}.
+
+\section{Cargas atômicas}
+\textbf{Mulliken} \cite{mulliken1955,segall1996}: lida do programa. \textbf{Voronoi} \cite{voronoi1908} e radical \cite{gellatly1982} (raios de Cordero \cite{cordero2008}):
+\begin{gather}
+N_a=\int_{V_a}\rho\,dV,\qquad q_a=Z_a^\mathrm{val}-N_a,\qquad m_a=\int_{V_a}(\rho_\uparrow-\rho_\downarrow)\,dV,\\ V_a=\{\mathbf r:|\mathbf r-\mathbf R_a|^2-r_a^2\ \text{mínimo}\}.
+\end{gather}
+\textbf{Bader} \cite{bader1990}: (i) cada ponto aponta ao vizinho (26) de maior subida, $\arg\max[\rho(\mathbf r')-\rho(\mathbf r)]/|\mathbf r'-\mathbf r|$ \cite{henkelman2006}; (ii) os ponteiros são resolvidos por saltos ($t\leftarrow t\circ t$); (iii) os pontos de fronteira são refeitos pelo método \emph{near-grid} \cite{tang2009bader}: o passo ideal em índices é $\mathbf d=\mathbf M\nabla_{\!idx}\rho$, $\mathbf M=\mathbf A_{idx}^{-1}\mathbf A_{idx}^{-T}$, normalizado ao maior componente, e um vetor de correção $\mathbf c\leftarrow\mathbf c+\mathbf d-\mathrm{round}(\mathbf d+\mathbf c)$ elimina o viés da grade; repete-se até as fronteiras pararem. Diferença média para o pybader: 0,0008\,e por átomo.
+
+\section{Diferença de densidade}
+\begin{gather}
+\Delta\rho=\pm(\rho_A-\rho_B-\rho_C),\qquad Q_\pm=\int_{\Delta\rho\gtrless0}\Delta\rho\,dV,\qquad Q_\mathrm{red}=\tfrac12\int|\Delta\rho|\,dV,\\
+\mathbf p=\int(\mathbf r-\mathbf r_c)\Delta\rho\,dV,\qquad \Delta Q(r)=\int_0^r\overline{\Delta\rho}(r')\,4\pi r'^2dr',
+\end{gather}
+com raios $R_{50}$ e $R_{90}$ que contêm 50\% e 90\% de $\int|\Delta\rho|dV$, médias planares e transferência de carga por célula de Voronoi.
+
+\section{Comparação, citação e exportação}
+Cálculos de qualquer programa são comparados lado a lado, alinhados ao próprio $\eF$. Cada sessão registra os métodos usados e gera um \code{.bib} com o software, os programas e os métodos. Figuras saem em PNG, JPG, JPEG~XL (sem perdas, idêntico ao PNG), WEBP e SVG; dados em \code{.dat}, CHGCAR (VASP 5) e XSF.
+
+\section{Validação}
+\begin{table}[h]\centering\small
+\caption{Validação com saídas reais e comparação com ferramentas consolidadas.}
+\begin{tabularx}{\linewidth}{@{}llX@{}}\toprule
+Programa & Sistema & Resultado \\\midrule
+CASTEP & MgH$_2$:Fe (162 átomos) & gap 1,394 eV (M$\to$R); sumo dá 0 por cruzamento de 0,04 meV de $\eF$ \\
+VASP & Si (PBE) & gap 0,614 eV = pymatgen; $m^*_e$ 0,94 $m_e$ (exp. 0,92) \\
+VASP & Fe$_2$O$_3$ (LDA+U) & 20 $\mu_\mathrm B$; gaps por spin = pymatgen \\
+SIESTA & SrTiO$_3$, Bi$_2$Se$_3$ & gaps idênticos ao sisl \\
+ORCA & divinilbenzeno & HOMO, LUMO e gap = cclib \\
+Densidade & MgH$_2$:Fe (CHGCAR) & Bader refinado: 0,0008 e/átomo do pybader \\
+Zona de Brillouin & CFC, CCC, HEX, TET, CUB, ORC & $V_\mathrm{ZB}=(2\pi)^3/V$; $|X|=2\pi/a$ na CFC \\\bottomrule
+\end{tabularx}\end{table}
+Os 80 testes automatizados (\code{pytest}) e a comparação reprodutível (\code{tools/comparar\_ferramentas.py}) rodam em integração contínua.
+
+\bibliographystyle{unsrtnat}
+\bibliography{teoria}
+\end{document}

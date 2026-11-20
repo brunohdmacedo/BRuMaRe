@@ -1,0 +1,23 @@
+# Publica o brumare no PyPI quando uma Release é publicada no GitHub.
+# Antes, configure o "Trusted Publisher" no PyPI (veja docs/MANUAL.md, seção E).
+name: Publicar no PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
