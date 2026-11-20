@@ -1,13 +1,38 @@
-# Compila o BruMaRe para Windows e publica uma Release completa:
-#   - BruMaRe-Setup-<versão>.exe        instalador (recomendado)
+# Compila o BruMaRe para Windows e publica uma Release completa no GitHub:
+#   - BruMaRe-Setup-<versão>.exe            instalador (recomendado)
 #   - BruMaRe-Portable-<versão>-win64.zip   versão portátil (BruMaRe.exe + brumare.exe)
-#   - BruMaRe.exe / brumare.exe         interface gráfica e linha de comando soltos
-#   - SHA256SUMS.txt                    checksums para verificação
-# Em tags "v*" cria a Release; em execução manual só gera os artefatos.
+#   - BruMaRe.exe / brumare.exe             interface gráfica e linha de comando soltos
+#   - SHA256SUMS.txt                        checksums para verificação
+#
+# COMO USAR (sem terminal):
+#   Actions > "Windows (.exe e instalador)" > Run workflow > informe a versão (ex.: 1.0.2).
+#   O workflow cria a tag v<versão> e a Release automaticamente.
+#
+# Também continua funcionando ao enviar uma tag "v*" (git tag v1.0.2 && git push origin v1.0.2).
 name: Windows (.exe e instalador)
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Versão do programa (ex.: 1.0.2). A tag v<versão> será criada."
+        required: true
+        default: "1.0.1"
+      publicar:
+        description: "Publicar na aba Releases do GitHub?"
+        type: boolean
+        required: false
+        default: true
+      prerelease:
+        description: "Marcar como pré-release (beta)?"
+        type: boolean
+        required: false
+        default: false
+      rascunho:
+        description: "Criar como rascunho (você revisa e publica depois)?"
+        type: boolean
+        required: false
+        default: false
   push:
     tags: ["v*"]
 
@@ -16,7 +41,7 @@ permissions:
 
 concurrency:
   group: windows-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -24,6 +49,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
@@ -31,20 +58,37 @@ jobs:
           cache: pip
 
       # ------------------------------------------------------------------
-      # Versão: na tag vX.Y.Z a versão vem da tag e é gravada em VERSAO,
-      # assim o .exe, o instalador e a Release sempre mostram o mesmo número.
+      # Versão: vem do campo digitado no "Run workflow" ou da tag vX.Y.Z.
+      # É gravada em VERSAO (só no build), então o .exe, o instalador e a
+      # Release sempre mostram o mesmo número.
       # ------------------------------------------------------------------
       - name: Definir versão
         shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
         run: |
-          if ($env:GITHUB_REF -like "refs/tags/v*") {
+          if ($env:EVENT_NAME -eq "workflow_dispatch") {
+            $v = $env:INPUT_VERSION.Trim().TrimStart("v")
+          } elseif ($env:GITHUB_REF -like "refs/tags/v*") {
             $v = $env:GITHUB_REF_NAME.TrimStart("v")
           } else {
             $m = Select-String -Path brumare.py -Pattern '^VERSAO\s*=\s*"(.+)"'
             if (-not $m) { throw "VERSAO não encontrada em brumare.py" }
             $v = $m.Matches[0].Groups[1].Value
           }
-          if ($v -notmatch '^\d+\.\d+\.\d+([.\-+][0-9A-Za-z.\-]+)?$') { throw "Versão inválida: $v" }
+          if ($v -notmatch '^\d+\.\d+\.\d+([.\-+][0-9A-Za-z.\-]+)?$') {
+            throw "Versão inválida: '$v'. Use o formato 1.2.3 (ou 1.2.3-rc1)."
+          }
+
+          # Em execução manual, não sobrescreve uma versão que já foi lançada.
+          if ($env:EVENT_NAME -eq "workflow_dispatch") {
+            $existe = git ls-remote --tags origin "refs/tags/v$v"
+            if ($existe) { throw "A tag v$v já existe. Escolha uma versão nova (ex.: aumente o último número)." }
+          }
+
+          $pre = ($v -match '-') -or ($env:INPUT_PRERELEASE -eq "true")
 
           foreach ($f in "brumare.py", "brumare_gui.py", "brumare_lote.py") {
             if (Test-Path $f) {
@@ -57,7 +101,8 @@ jobs:
             }
           }
           "VERSION=$v" >> $env:GITHUB_ENV
-          Write-Host "Versão: $v"
+          "PRERELEASE=$($pre.ToString().ToLower())" >> $env:GITHUB_ENV
+          Write-Host "Versão: $v (pré-release: $pre)"
 
       - name: Dependências
         run: |
@@ -79,7 +124,6 @@ jobs:
           }
 
       # Metadados do .exe (Propriedades > Detalhes): nome, versão, autor.
-      # Deixa o executável mais "legítimo" para o Windows e para antivírus.
       - name: Metadados do executável (version info)
         shell: pwsh
         run: |
@@ -221,7 +265,6 @@ jobs:
         shell: pwsh
         run: |
           $v = $env:VERSION
-          $repo = $env:GITHUB_REPOSITORY
           $body = @"
           ## BruMaRe $v para Windows
 
@@ -258,7 +301,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: BruMaRe-Windows
+          name: BruMaRe-Windows-${{ env.VERSION }}
           path: |
             dist/BruMaRe.exe
             dist/brumare.exe
@@ -268,15 +311,20 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Cria a tag v<versão> (se não existir) e a Release com todos os arquivos.
+      # Roda em tag "v*" ou na execução manual com "Publicar" marcado.
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publicar)
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
           name: BruMaRe ${{ env.VERSION }}
           body_path: release_notes.md
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          make_latest: ${{ !contains(github.ref_name, '-') }}
+          draft: ${{ github.event_name == 'workflow_dispatch' && inputs.rascunho }}
+          prerelease: ${{ env.PRERELEASE == 'true' }}
+          make_latest: ${{ env.PRERELEASE != 'true' }}
           fail_on_unmatched_files: true
           files: |
             dist/BruMaRe-Setup-*.exe
