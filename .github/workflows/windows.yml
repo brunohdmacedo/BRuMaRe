@@ -1,7 +1,7 @@
-# Compila o BruMaRe para Windows e publica uma Release completa no GitHub:
-#   - BruMaRe-Setup-<versão>.exe            instalador (recomendado)
-#   - BruMaRe-Portable-<versão>-win64.zip   versão portátil (BruMaRe.exe + brumare-cli.exe)
-#   - BruMaRe.exe / brumare-cli.exe         interface gráfica e linha de comando soltos
+# Compila o BrUMaRe para Windows e publica uma Release completa no GitHub:
+#   - BrUMaRe-Setup-<versão>.exe            instalador (recomendado)
+#   - BrUMaRe-Portable-<versão>-win64.zip   versão portátil (BrUMaRe.exe + brumare-cli.exe)
+#   - BrUMaRe.exe / brumare-cli.exe         interface gráfica e linha de comando soltos
 #   - SHA256SUMS.txt                        checksums para verificação
 #
 # COMO USAR (sem terminal):
@@ -137,7 +137,7 @@ jobs:
           nums = [int(x) for x in re.findall(r"\d+", v)][:4]
           nums += [0] * (4 - len(nums))
           t = tuple(nums)
-          owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "BruMaRe")
+          owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "BrUMaRe")
 
           def make(filename, desc):
               return VSVersionInfo(
@@ -148,24 +148,24 @@ jobs:
                           StringStruct("CompanyName", owner),
                           StringStruct("FileDescription", desc),
                           StringStruct("FileVersion", v),
-                          StringStruct("InternalName", "BruMaRe"),
+                          StringStruct("InternalName", "BrUMaRe"),
                           StringStruct("OriginalFilename", filename),
-                          StringStruct("ProductName", "BruMaRe"),
+                          StringStruct("ProductName", "BrUMaRe"),
                           StringStruct("ProductVersion", v),
                           StringStruct("LegalCopyright", "© " + owner),
                       ])]),
                       VarFileInfo([VarStruct("Translation", [1033, 1200])]),
                   ])
 
-          open("version_gui.txt", "w", encoding="utf-8").write(str(make("BruMaRe.exe", "BruMaRe - Interface gráfica")))
-          open("version_cli.txt", "w", encoding="utf-8").write(str(make("brumare-cli.exe", "BruMaRe - Linha de comando")))
+          open("version_gui.txt", "w", encoding="utf-8").write(str(make("BrUMaRe.exe", "BrUMaRe - Interface gráfica")))
+          open("version_cli.txt", "w", encoding="utf-8").write(str(make("brumare-cli.exe", "BrUMaRe - Linha de comando")))
           print("version info ok:", v)
           '@ | python -
 
       - name: Executáveis (PyInstaller)
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name BruMaRe `
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name BrUMaRe `
             --icon assets\brumare.ico --version-file version_gui.txt `
             --add-data "brumare_app\web;brumare_app\web" --add-data "assets;assets" `
             --collect-all webview --collect-all pythonnet --collect-all clr_loader `
@@ -176,7 +176,7 @@ jobs:
             brumare_gui.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller (GUI) falhou" }
 
-          # Atenção: no Windows "BruMaRe.exe" e "brumare.exe" são o MESMO arquivo
+          # Atenção: no Windows "BrUMaRe.exe" e "brumare.exe" são o MESMO arquivo
           # (nomes não diferenciam maiúsculas). Por isso o CLI se chama brumare-cli.exe.
           python -m PyInstaller --noconfirm --clean --onefile --console --name brumare-cli `
             --icon assets\brumare.ico --version-file version_cli.txt `
@@ -191,9 +191,9 @@ jobs:
         shell: pwsh
         run: |
           # Garante que a interface gráfica não foi sobrescrita pelo CLI.
-          $h1 = (Get-FileHash dist\BruMaRe.exe).Hash
+          $h1 = (Get-FileHash dist\BrUMaRe.exe).Hash
           $h2 = (Get-FileHash dist\brumare-cli.exe).Hash
-          if ($h1 -eq $h2) { throw "BruMaRe.exe e brumare-cli.exe são idênticos: um sobrescreveu o outro." }
+          if ($h1 -eq $h2) { throw "BrUMaRe.exe e brumare-cli.exe são idênticos: um sobrescreveu o outro." }
 
           $out = (& dist\brumare-cli.exe --versao 2>&1 | Out-String)
           if ($LASTEXITCODE -ne 0) { throw "brumare-cli.exe --versao falhou" }
@@ -212,9 +212,13 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
-          $p = Start-Process -FilePath dist\BruMaRe.exe -PassThru
+          $log = Join-Path $env:USERPROFILE ".brumare\erro.log"
+          Remove-Item $log -ErrorAction SilentlyContinue
+          $p = Start-Process -FilePath dist\BrUMaRe.exe -PassThru
           Start-Sleep -Seconds 15
-          if ($p.HasExited) { throw "BruMaRe.exe fechou sozinho (código $($p.ExitCode))" }
+          if (Test-Path $log) { Get-Content $log; throw "BrUMaRe.exe registrou um erro ao abrir (veja acima)." }
+          if ($p.HasExited) { throw "BrUMaRe.exe fechou sozinho (código $($p.ExitCode))" }
+          Get-Process -Name BrUMaRe -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "Janela: '$($_.MainWindowTitle)'" }
           Write-Host "Interface abriu e permaneceu em execução."
           taskkill /F /T /PID $p.Id | Out-Null
 
@@ -229,6 +233,9 @@ jobs:
           Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 2; StartTime = (Get-Date).AddMinutes(-5) } -ErrorAction SilentlyContinue |
             Select-Object -First 5 | ForEach-Object { $_.Message; "---" }
 
+          Write-Host "=== 1b) Arquivo de erro do programa (~/.brumare/erro.log) ==="
+          Get-Content (Join-Path $env:USERPROFILE ".brumare\erro.log") -ErrorAction SilentlyContinue
+
           Write-Host "=== 2) Código-fonte rodando direto no Python (20 s) ==="
           $p = Start-Process python -ArgumentList "brumare_gui.py" -PassThru -NoNewWindow `
             -RedirectStandardOutput py_out.txt -RedirectStandardError py_err.txt
@@ -237,7 +244,7 @@ jobs:
           Get-Content py_out.txt, py_err.txt -ErrorAction SilentlyContinue
 
           Write-Host "=== 3) Cópia do .exe COM console, para ver o erro ==="
-          python -m PyInstaller --noconfirm --onefile --console --name BruMaRe-debug `
+          python -m PyInstaller --noconfirm --onefile --console --name BrUMaRe-debug `
             --distpath dist_debug --workpath build_debug `
             --add-data "brumare_app\web;brumare_app\web" --add-data "assets;assets" `
             --collect-all webview --collect-all pythonnet --collect-all clr_loader `
@@ -246,7 +253,7 @@ jobs:
             --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 `
             --exclude-module notebook --exclude-module jedi --exclude-module sympy `
             brumare_gui.py | Out-Null
-          $d = Start-Process dist_debug\BruMaRe-debug.exe -PassThru `
+          $d = Start-Process dist_debug\BrUMaRe-debug.exe -PassThru `
             -RedirectStandardOutput dbg_out.txt -RedirectStandardError dbg_err.txt
           if ($d.WaitForExit(20000)) { Write-Host "Terminou sozinho, código $($d.ExitCode)" }
           else { Write-Host "Ficou aberto por 20 s (ok)"; taskkill /F /T /PID $d.Id | Out-Null }
@@ -258,30 +265,28 @@ jobs:
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$env:VERSION" packaging\windows\brumare.iss
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup falhou" }
-          Get-ChildItem dist\BruMaRe-Setup-*.exe | ForEach-Object { Write-Host "Instalador: $($_.Name)" }
+          Get-ChildItem dist\BrUMaRe-Setup-*.exe | ForEach-Object { Write-Host "Instalador: $($_.Name)" }
 
       # Instala em silêncio, roda o executável instalado e desinstala.
       - name: Teste do instalador (instalar, executar, desinstalar)
         shell: pwsh
         run: |
-          $setup = (Get-ChildItem dist\BruMaRe-Setup-*.exe | Select-Object -First 1).FullName
-          $dir = Join-Path $env:RUNNER_TEMP "BruMaReInstall"
+          $setup = (Get-ChildItem dist\BrUMaRe-Setup-*.exe | Select-Object -First 1).FullName
+          $dir = Join-Path $env:RUNNER_TEMP "BrUMaReInstall"
           Start-Process -FilePath $setup -Wait `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=`"$dir`""
-          Get-Process -Name BruMaRe -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-Process -Name BrUMaRe -ErrorAction SilentlyContinue | Stop-Process -Force
 
           Write-Host "Conteúdo instalado:"
           Get-ChildItem $dir -Recurse -File | Select-Object -First 30 FullName, Length | Format-Table -AutoSize
 
-          $cli = Get-ChildItem $dir -Recurse -Filter brumare-cli.exe | Select-Object -First 1
-          $gui = Get-ChildItem $dir -Recurse -Filter BruMaRe.exe | Select-Object -First 1
-          if (-not $gui) { throw "BruMaRe.exe não foi instalado em $dir" }
-          if ($cli) {
-            & $cli.FullName --versao
-            if ($LASTEXITCODE -ne 0) { throw "brumare-cli.exe instalado falhou" }
-          } else {
-            Write-Host "::warning::brumare-cli.exe não está no instalador (ajuste packaging/windows/brumare.iss se quiser incluí-lo)."
-          }
+          $gui = Join-Path $dir "BrUMaRe.exe"
+          $cli = Join-Path $dir "cli\brumare.exe"
+          if (-not (Test-Path $gui)) { throw "BrUMaRe.exe não foi instalado em $dir" }
+          if (-not (Test-Path $cli)) { throw "cli\brumare.exe não foi instalado em $dir" }
+          if ((Get-FileHash $gui).Hash -eq (Get-FileHash $cli).Hash) { throw "Interface e linha de comando instaladas são o mesmo arquivo." }
+          & $cli --versao
+          if ($LASTEXITCODE -ne 0) { throw "brumare.exe (linha de comando instalada) falhou" }
 
           $unins = Get-ChildItem $dir -Filter "unins*.exe" | Select-Object -First 1
           if ($unins) {
@@ -297,16 +302,16 @@ jobs:
           $v = $env:VERSION
           New-Item -ItemType Directory -Force release | Out-Null
 
-          $stage = "stage\BruMaRe-Portable-$v-win64"
+          $stage = "stage\BrUMaRe-Portable-$v-win64"
           New-Item -ItemType Directory -Force $stage | Out-Null
-          Copy-Item dist\BruMaRe.exe, dist\brumare-cli.exe $stage
+          Copy-Item dist\BrUMaRe.exe, dist\brumare-cli.exe $stage
           Copy-Item README.md, LICENSE, LICENSE.txt, LICENSE.md $stage -ErrorAction SilentlyContinue
-          Compress-Archive -Path "$stage\*" -DestinationPath "release\BruMaRe-Portable-$v-win64.zip" -Force
+          Compress-Archive -Path "$stage\*" -DestinationPath "release\BrUMaRe-Portable-$v-win64.zip" -Force
 
-          $setup = Get-ChildItem dist\BruMaRe-Setup-*.exe | Select-Object -First 1
+          $setup = Get-ChildItem dist\BrUMaRe-Setup-*.exe | Select-Object -First 1
           if (-not $setup) { throw "Instalador não encontrado em dist\" }
           Copy-Item $setup.FullName release\
-          Copy-Item dist\BruMaRe.exe, dist\brumare-cli.exe release\
+          Copy-Item dist\BrUMaRe.exe, dist\brumare-cli.exe release\
           "SETUP_NAME=$($setup.Name)" >> $env:GITHUB_ENV
 
           $lines = Get-ChildItem release -File | Sort-Object Name | ForEach-Object {
@@ -321,15 +326,15 @@ jobs:
         run: |
           $v = $env:VERSION
           $body = @"
-          ## BruMaRe $v para Windows
+          ## BrUMaRe $v para Windows
 
           Baixe, instale e use. Nenhuma instalação de Python é necessária.
 
           | Arquivo | Para quê |
           |---|---|
           | **$($env:SETUP_NAME)** | Instalador (recomendado): atalhos no Menu Iniciar e desinstalador |
-          | **BruMaRe-Portable-$v-win64.zip** | Versão portátil: extraia e execute, sem instalar |
-          | BruMaRe.exe | Interface gráfica (igual ao site, funciona offline) |
+          | **BrUMaRe-Portable-$v-win64.zip** | Versão portátil: extraia e execute, sem instalar |
+          | BrUMaRe.exe | Interface gráfica (igual ao site, funciona offline) |
           | brumare-cli.exe | Linha de comando (``brumare-cli --help``) |
           | SHA256SUMS.txt | Checksums para conferir a integridade dos arquivos |
 
@@ -356,7 +361,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: BruMaRe-Windows-${{ env.VERSION }}
+          name: BrUMaRe-Windows-${{ env.VERSION }}
           path: release/*
           if-no-files-found: error
           retention-days: 30
@@ -369,7 +374,7 @@ jobs:
         with:
           tag_name: v${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
-          name: BruMaRe ${{ env.VERSION }}
+          name: BrUMaRe ${{ env.VERSION }}
           body_path: release_notes.md
           generate_release_notes: true
           draft: ${{ github.event_name == 'workflow_dispatch' && inputs.rascunho }}
