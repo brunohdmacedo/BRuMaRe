@@ -3,13 +3,13 @@
 <p align="center"><b>Bandas, DOS, PDOS, densidade de carga, defeitos e termodinâmica a partir de cálculos CASTEP, VASP e SIESTA</b><br>
 Spin up e down · energia de Fermi exatamente a do CASTEP · Origin e VESTA · web, Python e Windows</p>
 
-<p align="center"><a href="https://brunohdmacedo.tech/brumare/">Abrir no navegador</a> · <a href="https://brunohdmacedo.tech/brumare/tutorial.html">Tutorial</a> · <a href="brumare-tutorial.pdf">Tutorial em PDF</a> · <a href="https://github.com/brunohdmacedo/brumare/releases/latest">Baixar para Windows</a> · <a href="#como-citar">Como citar</a> · <a href="docs/MANUAL.md">Manual do autor</a></p>
+<p align="center"><a href="https://brunohdmacedo.tech/brumare/">Abrir no navegador</a> · <a href="https://brunohdmacedo.tech/brumare/tutorial.html">Tutorial</a> · <a href="brumare-tutorial.pdf">Tutorial em PDF</a> · <a href="https://github.com/brunohdmacedo/brumare/releases/latest">Baixar para Windows</a> · <a href="#como-citar">Como citar</a> ·</p>
 
 ---
 
 **BrUMaRe** quer dizer névoa: a nuvem eletrônica, isto é, a densidade de carga que o programa mostra. As letras também são as iniciais do autor, **Bru**no **Ma**cedo. A logo representa bandas de valência (ciano) e de condução (violeta) como camadas de névoa, com o nível de Fermi tracejado e um estado de defeito no meio do gap (o ponto âmbar).
 
-> **Manual do autor:** como publicar, manter e atualizar o BrUMaRe e o site (GitHub Pages, citações automáticas, versões, Windows, PyPI, DOI no Zenodo, cluster, LaTeX). Disponível em [docs/MANUAL.md](docs/MANUAL.md) e em PDF ([docs/manual/manual-brumare.pdf](docs/manual/manual-brumare.pdf)).
+>
 
 ## Programas suportados: CASTEP, VASP e SIESTA
 
