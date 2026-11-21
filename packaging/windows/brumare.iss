@@ -41,7 +41,7 @@ Name: "addpath"; Description: "Adicionar o comando 'brumare' (linha de comando) 
 
 [Files]
 Source: "..\..\dist\BrUMaRe.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\dist\brumare.exe"; DestDir: "{app}\cli"; Flags: ignoreversion
+Source: "..\..\dist\brumare-cli.exe"; DestDir: "{app}\cli"; DestName: "brumare.exe"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "..\..\LICENCA.md"; DestDir: "{app}"; Flags: ignoreversion
@@ -61,6 +61,8 @@ Name: "{autodesktop}\BrUMaRe"; Filename: "{app}\BrUMaRe.exe"; Tasks: desktopicon
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\cli"; Tasks: addpath; Check: NeedsAddPath(ExpandConstant('{app}\cli'))
 
 [Run]
+; Instala o Microsoft Edge WebView2 (necessário para a janela) só se ainda não existir no computador
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Instalando o Microsoft Edge WebView2..."; Check: PrecisaInstalarWebView2
 Filename: "{app}\BrUMaRe.exe"; Description: "Abrir o BrUMaRe agora"; Flags: nowait postinstall skipifsilent
 
 [Code]
@@ -69,4 +71,42 @@ var OrigPath: string;
 begin
   if not RegQueryStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', OrigPath) then begin Result := True; exit; end;
   Result := Pos(';' + Uppercase(Param) + ';', ';' + Uppercase(OrigPath) + ';') = 0;
+end;
+
+const
+  WebView2Guid = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+
+function WebView2Instalado(): Boolean;
+var
+  Versao: String;
+begin
+  Result := False;
+  if RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\' + WebView2Guid, 'pv', Versao) then
+  begin
+    if (Versao <> '') and (Versao <> '0.0.0.0') then Result := True;
+  end;
+  if not Result then
+  begin
+    if RegQueryStringValue(HKEY_CURRENT_USER, 'Software\Microsoft\EdgeUpdate\Clients\' + WebView2Guid, 'pv', Versao) then
+    begin
+      if (Versao <> '') and (Versao <> '0.0.0.0') then Result := True;
+    end;
+  end;
+end;
+
+function PrecisaInstalarWebView2(): Boolean;
+begin
+  Result := (not WebView2Instalado()) and FileExists(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'));
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssInstall) and (not WebView2Instalado()) then
+  begin
+    try
+      DownloadTemporaryFile('https://go.microsoft.com/fwlink/p/?LinkId=2124703', 'MicrosoftEdgeWebview2Setup.exe', '', nil);
+    except
+      Log('Nao foi possivel baixar o WebView2: ' + GetExceptionMessage);
+    end;
+  end;
 end;
