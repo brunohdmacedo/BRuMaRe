@@ -30,11 +30,37 @@ import webbrowser
 
 BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE)
-import brumare  # noqa: E402  (identificação: nome, versão, autor, citação)
-from brumare_app import web_dir  # noqa: E402
+DADOS = os.path.join(os.path.expanduser("~"), ".brumare")
+
+
+def _erro_fatal(exc):
+    """Sem console (.exe com janela) um erro some em silêncio: grava ~/.brumare/erro.log e avisa na tela."""
+    import traceback
+    txt = traceback.format_exc()
+    log = os.path.join(DADOS, "erro.log")
+    try:
+        os.makedirs(DADOS, exist_ok=True)
+        with open(log, "w", encoding="utf-8") as f:
+            f.write(txt)
+    except Exception:
+        log = "(não foi possível gravar o arquivo de log)"
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(
+                0, f"O BrUMaRe não conseguiu abrir.\n\n{type(exc).__name__}: {exc}\n\nDetalhes em:\n{log}", "BrUMaRe", 0x10)
+        except Exception:
+            pass
+    sys.exit(1)
+
+
+try:
+    import brumare  # noqa: E402  (identificação: nome, versão, autor, citação)
+    from brumare_app import web_dir  # noqa: E402
+except Exception as _e:
+    _erro_fatal(_e)
 
 TITULO = f"{brumare.NOME} {brumare.VERSAO} · bandas, DOS, densidade e defeitos (CASTEP, VASP, SIESTA)"
-DADOS = os.path.join(os.path.expanduser("~"), ".brumare")
 
 
 def icone():
@@ -144,3 +170,7 @@ if __name__ == "__main__":
         main()
     except BrokenPipeError:
         pass
+    except SystemExit:
+        raise
+    except Exception as _e:
+        _erro_fatal(_e)
